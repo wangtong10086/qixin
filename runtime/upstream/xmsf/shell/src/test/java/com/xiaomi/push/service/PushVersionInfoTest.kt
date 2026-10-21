@@ -1,0 +1,93 @@
+package com.xiaomi.push.service
+
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+class PushVersionInfoTest {
+
+    @Test
+    fun `stock baseline constants match pulled xmsf baseline`() {
+        assertEquals("7.5.29-C", PushVersionInfo.STOCK_XMSF_APP_VERSION_NAME)
+        assertEquals(70005029, PushVersionInfo.STOCK_XMSF_APP_VERSION_CODE)
+        assertEquals("7_12_4-C", PushVersionInfo.PUSH_SDK_VERSION_NAME)
+        assertEquals(70124, PushVersionInfo.PUSH_SDK_VERSION_CODE)
+    }
+
+    @Test
+    fun `push constants expose aligned stock facing versions`() {
+        assertEquals(PushVersionInfo.PUSH_SDK_VERSION_NAME, PushConstants.PUSH_VERSION_NAME)
+        assertEquals(PushVersionInfo.PUSH_SDK_VERSION_CODE, PushConstants.PUSH_VERSION_CODE)
+        assertEquals(PushVersionInfo.STOCK_XMSF_APP_VERSION_NAME, PushConstants.FRAMEWORK_APP_VERSION_NAME)
+        assertEquals(PushVersionInfo.STOCK_XMSF_APP_VERSION_CODE, PushConstants.FRAMEWORK_APP_VERSION_CODE)
+    }
+
+    @Test
+    fun `framework package reports stock compatible app version while other packages keep actual version`() {
+        assertEquals(
+            "7.5.29-C",
+            PushVersionInfo.reportedAppVersionName(PushConstants.PUSH_SERVICE_PACKAGE_NAME, "1.2.3"),
+        )
+        assertEquals(
+            70005029,
+            PushVersionInfo.reportedAppVersionCode(PushConstants.PUSH_SERVICE_PACKAGE_NAME, 1003003000),
+        )
+        assertEquals(
+            "1.2.3",
+            PushVersionInfo.reportedAppVersionName("com.example.app", "1.2.3"),
+        )
+        assertEquals(
+            123,
+            PushVersionInfo.reportedAppVersionCode("com.example.app", 123),
+        )
+    }
+
+    @Test
+    fun `push sdk extras stay stock aligned across all stock facing keys`() {
+        val extras = LinkedHashMap<String, String>()
+
+        PushVersionInfo.appendPushSdkExtras(extras)
+
+        assertEquals(
+            linkedMapOf(
+                "push_sdk_vn" to "7_12_4-C",
+                "push_sdk_vc" to "70124",
+                "cpvn" to "7_12_4-C",
+                "cpvc" to "70124",
+            ),
+            extras,
+        )
+    }
+
+    @Test
+    fun `client extra helper emits aligned stock channel markers`() {
+        val clientExtra = PushVersionInfo.buildClientExtraAttributes(
+            runningPackages = "com.example.app",
+            countryCode = "CN",
+            region = "CN",
+        )
+
+        assertEquals("41", clientExtra["sdk_ver"])
+        assertEquals("7_12_4-C", clientExtra["cpvn"])
+        assertEquals("70124", clientExtra["cpvc"])
+        assertEquals("com.example.app", clientExtra["aapn"])
+        assertEquals("CN", clientExtra["country_code"])
+        assertEquals("CN", clientExtra["region"])
+    }
+
+    @Test
+    fun `account registration params use stock runtime versions without clobbering package name`() {
+        val params = linkedMapOf("packagename" to "com.example.app")
+
+        PushVersionInfo.appendAccountRegistrationParams(
+            target = params,
+            packageName = PushConstants.PUSH_SERVICE_PACKAGE_NAME,
+            actualVersionCode = 1003003000,
+        )
+
+        assertEquals("70005029", params["appversion"])
+        assertEquals("70124", params["sdkversion"])
+        assertEquals("com.example.app", params["packagename"])
+        assertTrue(params.containsKey("sdkversion"))
+    }
+}

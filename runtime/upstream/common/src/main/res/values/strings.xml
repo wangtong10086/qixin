@@ -1,0 +1,70 @@
+<resources>
+    <string name="push_service_name">Push</string>
+    <string name="enable">Enable</string>
+    <string name="disable">Disable</string>
+
+    <string name="start">Start</string>
+    <string name="end">End</string>
+
+    <!-- Event -->
+    <string name="event_register">Try to register push</string>
+    <string name="event_register_result">Receive register result</string>
+
+    <!-- Notification but no title -->
+    <string name="event_push">Receive notification</string>
+
+    <string name="event_command">Receive command</string>
+
+    <!-- Permissions -->
+    <string name="request_permission">We need permissions to work</string>
+
+
+    <string name="error_usage_stats">Getting UsageStats error. If your system does not support this feature, MiPush will try Accessibility as a fallback.</string>
+    <string name="log_share_error">Cannot share logs：%1$s</string>
+    <string name="log_clear_done">Logs cleaned.</string>
+
+
+
+    <string name="wizard_title_doze_whitelist">Remove battery optimization</string>
+    <string name="wizard_descr_doze_whitelist">The Push service will not keep running if it is \'battery optimized\'. Please click the button below to request adding it to battery-optimized whitelist (some ROMs may not be supported, if you do not respond after clicking, please click \"Next\".)</string>
+    <string name="wizard_button_remove_doze">Remove battery optimization</string>
+    <string name="settings_experimental">Experimental</string>
+
+
+    <string name="mock_kind_plain">Plain</string>
+    <string name="mock_kind_plain_desc">Basic notification with title and text</string>
+    <string name="mock_kind_big_text">BigText</string>
+    <string name="mock_kind_big_text_desc">Expandable large text notification</string>
+    <string name="mock_kind_big_picture">BigPicture</string>
+    <string name="mock_kind_big_picture_desc">Notification with large image</string>
+    <string name="mock_kind_inbox">Inbox</string>
+    <string name="mock_kind_inbox_desc">Multi-line inbox style</string>
+    <string name="mock_kind_messaging">Messaging</string>
+    <string name="mock_kind_messaging_desc">Conversation style notification</string>
+    <string name="mock_kind_media">Media</string>
+    <string name="mock_kind_media_desc">Media playback controls</string>
+    <string name="mock_kind_progress">Progress</string>
+    <string name="mock_kind_progress_desc">Ongoing progress bar notification</string>
+    <string name="mock_kind_heads_up">Heads-up</string>
+    <string name="mock_kind_heads_up_desc">High priority banner notification</string>
+    <string name="mock_kind_dynamic_island">Dynamic Island</string>
+    <string name="mock_kind_dynamic_island_desc">Show only the small floating island without posting a notification</string>
+    <string name="mock_kind_focus_notification">Focus Notification</string>
+    <string name="mock_kind_focus_notification_desc">Send the general focus island template through SystemUI</string>
+    <string name="mock_kind_focus_message">Focus Chat</string>
+    <string name="mock_kind_focus_message_desc">Send the chat focus island template through SystemUI</string>
+    <string name="mock_kind_focus_banner">Focus Banner</string>
+    <string name="mock_kind_focus_banner_desc">Send the banner focus island template through SystemUI</string>
+    <string name="mock_kind_focus_alert">Focus Alert</string>
+    <string name="mock_kind_focus_alert_desc">Send the reminder focus island template through SystemUI</string>
+    <string name="mock_kind_focus_promo">Focus Promo</string>
+    <string name="mock_kind_focus_promo_desc">Send the promo focus island template through SystemUI</string>
+    <string name="mock_kind_focus_media">Focus Media</string>
+    <string name="mock_kind_focus_media_desc">Send the media cover focus island template through SystemUI</string>
+    <string name="mock_kind_focus_progress">Focus Progress</string>
+    <string name="mock_kind_focus_progress_desc">Send the progress focus island template through SystemUI</string>
+    <string name="mock_kind_voip">VoIP Incoming Call</string>
+    <string name="mock_kind_voip_desc">Full-screen call notification</string>
+    <string name="mock_kind_live_update">Live Update</string>
+    <string name="mock_kind_live_update_desc">Android 16+ progress-style promoted notification</string>
+</resources>

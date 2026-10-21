@@ -1,0 +1,52 @@
+package io.github.magisk317.mipush.runtime.android
+
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+
+class PushRuntimeDuplicateStoreTest {
+
+    @Test
+    fun `parseStoredEntries upgrades legacy comma payloads`() {
+        val parsed = PushRuntimeDuplicateStore.parseStoredEntries("msg-1,msg-2", nowMs = 1_000L)
+
+        assertEquals(linkedMapOf("msg-1" to 1_000L, "msg-2" to 1_000L), parsed)
+    }
+
+    @Test
+    fun `checkAndMark expires stale ids before duplicate check`() {
+        val entries = linkedMapOf("msg-1" to 1L)
+
+        assertFalse(
+            PushRuntimeDuplicateStore.checkAndMark(
+                entries = entries,
+                messageId = "msg-1",
+                nowMs = PushRuntimeDuplicateStore.MESSAGE_ID_TTL_MS + 5L,
+            ),
+        )
+        assertEquals(PushRuntimeDuplicateStore.MESSAGE_ID_TTL_MS + 5L, entries["msg-1"])
+    }
+
+    @Test
+    fun `checkAndMark keeps duplicate within ttl window`() {
+        val entries = linkedMapOf<String, Long>()
+
+        assertFalse(PushRuntimeDuplicateStore.checkAndMark(entries, "msg-1", nowMs = 1_000L))
+        assertTrue(PushRuntimeDuplicateStore.checkAndMark(entries, "msg-1", nowMs = 2_000L))
+    }
+
+    @Test
+    fun `storage keys isolate cloned users while preserving primary key`() {
+        assertEquals("com.example.app", PushRuntimeDuplicateStore.storageKey("com.example.app", 0))
+        assertEquals("999:com.example.app", PushRuntimeDuplicateStore.storageKey("com.example.app", 999))
+    }
+
+    @Test
+    fun `storage key rejects invalid user ids instead of falling back to primary`() {
+        assertThrows<IllegalArgumentException> {
+            PushRuntimeDuplicateStore.storageKey("com.example.app", -1)
+        }
+    }
+}

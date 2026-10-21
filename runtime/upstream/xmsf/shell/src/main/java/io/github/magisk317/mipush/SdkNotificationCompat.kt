@@ -1,0 +1,24 @@
+package io.github.magisk317.mipush
+
+import android.os.Build
+import io.github.magisk317.mipush.manager.application.MockReplayOutcome
+import io.github.magisk317.mipush.platform.support.XMPushUtils
+import io.github.magisk317.mipush.service.runtime.MIPushNotificationPublishHelper
+import com.xiaomi.push.service.XMPushServiceCore
+import com.xiaomi.xmpush.thrift.ActionType
+
+object SdkNotificationCompat {
+    @JvmStatic
+    fun shouldUseModernHelper(payload: ByteArray?): Boolean {
+        if (payload == null || payload.isEmpty()) return false
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return false
+        val container = XMPushUtils.packToContainer(payload) ?: return false
+        return container.action == ActionType.SendMessage || container.action == ActionType.Notification
+    }
+
+    @JvmStatic
+    fun notifyWithModernHelper(pushService: XMPushServiceCore, payload: ByteArray?): MockReplayOutcome {
+        if (payload == null || payload.isEmpty()) return MockReplayOutcome.Failed
+        return MIPushNotificationPublishHelper.notifyPushMessage(pushService, payload)
+    }
+}

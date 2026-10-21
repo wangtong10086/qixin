@@ -1,0 +1,57 @@
+
+# IDE
+*.iml
+.idea/
+.vscode/
+
+# Local config
+/local.properties
+/xmsf/local.properties
+.DS_Store
+
+# Local agent guidance
+AGENTS.md
+AGENTS.override.md
+agents.md
+agents.override.md
+
+# Build outputs
+**/build/
+.gradle/
+/out/
+.externalNativeBuild
+.cxx
+
+# Keystores and sensitive files
+*.jks
+*.keystore
+.yuuta.jks
+
+# Android / Gradle / Eclipse
+/captures
+gen/
+debug/
+release/
+.classpath
+.project
+org.eclipse.buildship.core.prefs
+
+# Keep selected repository metadata directories in the root
+/.*/
+!/.github/
+!/.github/**
+!/.gitlab/
+!/.gitlab/**
+
+# Logs
+*.log
+/log
+
+# Local build artifacts
+build-artifacts/
+/build-artifacts/
+
+# Test convenience scripts and caches
+run_test.sh
+.jqwik-database
+signature.properties

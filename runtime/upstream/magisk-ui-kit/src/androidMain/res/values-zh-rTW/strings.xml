@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pref_enable_analytics_title">統計資料</string>
+    <string name="pref_enable_analytics_summary">允許開發者匿名分析通道使用情況、成功率、崩潰等技術細節</string>
+    <string name="mobile_entitlement_title">裝置啟用狀態</string>
+    <string name="mobile_entitlement_status">啟用狀態：%1$s</string>
+    <string name="mobile_entitlement_automation">功能狀態：%1$s</string>
+    <string name="mobile_entitlement_allowed">可用</string>
+    <string name="mobile_entitlement_paused">已暫停</string>
+    <string name="mobile_entitlement_issued_at">啟用時間：%1$s</string>
+    <string name="mobile_entitlement_device_id">啟用 ID：%1$s</string>
+    <string name="mobile_entitlement_copy">複製</string>
+    <string name="mobile_entitlement_copied">複製成功</string>
+    <string name="mobile_entitlement_activation_token_label">一次性啟用令牌</string>
+    <string name="mobile_entitlement_activation_token_hint">請輸入機器人回傳的 32 位一次性啟用令牌</string>
+    <string name="mobile_entitlement_activation_token_confirm">使用令牌啟用</string>
+    <string name="mobile_entitlement_activation_token_invalid">請輸入有效的 32 位一次性啟用令牌</string>
+    <string name="mobile_entitlement_activation_token_get_hint">點擊「獲取啟用碼」，把啟用碼傳送給 QQ 頻道或 Telegram 裡的機器人，再把回傳的一次性令牌貼到這裡。</string>
+    <string name="mobile_entitlement_activate_telegram">Telegram 啟用</string>
+    <string name="mobile_entitlement_get_activation_code">獲取啟用碼</string>
+    <string name="mobile_entitlement_qq_title">啟用碼</string>
+    <string name="mobile_entitlement_qq_code_label">啟用碼</string>
+    <string name="mobile_entitlement_qq_join_channel">加入 QQ 頻道</string>
+    <string name="mobile_entitlement_qq_instructions">複製啟用碼，加入 QQ 頻道後在頻道內找到機器人，傳送啟用碼或啟用連結；機器人會自動回傳一次性令牌，貼到上方輸入框即可完成啟用。</string>
+    <string name="mobile_entitlement_qq_dismiss">關閉</string>
+    <string name="mobile_entitlement_qq_entry_missing">伺服器未回傳 QQ 入口資訊，請重試。</string>
+    <string name="mobile_entitlement_refresh">重新整理狀態</string>
+    <string name="mobile_entitlement_error">錯誤：%1$s</string>
+    <string name="mobile_entitlement_jump_failed_copied">無法開啟應用，已複製連結到剪貼簿</string>
+</resources>

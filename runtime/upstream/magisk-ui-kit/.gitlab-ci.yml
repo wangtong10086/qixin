@@ -1,0 +1,43 @@
+include:
+  # Utility-job anchor (alpine, pinned): sync:github extends it instead of
+  # pinning its own image. This repository's only job is that mirror push.
+  - project: magisk3171/shared/magisk-ci-toolkit
+    ref: v1
+    file: /.gitlab/ci/utility.yml
+
+stages:
+  - sync
+
+variables:
+  XPOSED_GITLAB_LINUX_ARM64_RUNNER_TAG: "magisk-arm64-linux"
+  GIT_DEPTH: "0"
+  MAGISK_ANDROID_RELEASE_GITHUB_REPOSITORY: "magisk317/magisk-ui-kit"
+
+# Mirrors this repository to GitHub on every push to the default branch and on
+# tags, mirroring the sync:github job used by XposedSmsCode / MiPushFramework /
+# xinyi-relay. GITHUB_PAT is a protected group variable, injected on protected
+# refs (main is protected); tags only receive it under a protected tag rule.
+sync:github:
+  extends: .magisk_utility_base
+  stage: sync
+  tags:
+    - $XPOSED_GITLAB_LINUX_ARM64_RUNNER_TAG
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "push"'
+    - if: '$CI_COMMIT_TAG'
+    - when: never
+  script:
+    - |
+      set -euo pipefail
+      sync_token="${GITHUB_PAT:-${GITHUB_RELEASE_TOKEN:-}}"
+      if [ -z "$sync_token" ]; then
+        echo "ERROR: neither GITHUB_PAT nor GITHUB_RELEASE_TOKEN is available on $CI_COMMIT_REF_NAME (protected=$CI_COMMIT_REF_PROTECTED)" >&2
+        exit 1
+      fi
+      git remote add github "https://magisk317:${sync_token}@github.com/${MAGISK_ANDROID_RELEASE_GITHUB_REPOSITORY}.git" || true
+      if [ -n "${CI_COMMIT_TAG:-}" ]; then
+        git push github "$CI_COMMIT_TAG" --force
+        git push github --tags --force
+      else
+        git push github "HEAD:refs/heads/$CI_COMMIT_BRANCH" --force
+      fi

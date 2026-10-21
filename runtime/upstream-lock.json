@@ -1,0 +1,22 @@
+{
+  "repository": "https://github.com/magisk317/MiPushFramework",
+  "commit": "177639faf0ee4f0a3a6e24d1708e9526efd9d891",
+  "tag": "v1.1.0",
+  "submodules": [
+    {
+      "path": "build-logic",
+      "repository": "https://gitlab.com/magisk3171/shared/magisk-build-logic",
+      "commit": "b1f3a56c7bfc99438e07fd50bdedb59443cba394"
+    },
+    {
+      "path": "magisk-xposed-kit",
+      "repository": "https://gitlab.com/magisk3171/shared/magisk-xposed-kit",
+      "commit": "0f222af3e9d9ba6819188e40897656448ccb5b98"
+    },
+    {
+      "path": "magisk-ui-kit",
+      "repository": "https://gitlab.com/magisk3171/shared/magisk-ui-kit",
+      "commit": "d92b221aceeb7dbd854969c0194a8eb62d908d04"
+    }
+  ]
+}

@@ -1,0 +1,831 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <eat-comment />
+
+    <plurals name="date_minutes">
+        <item quantity="other">分钟</item>
+    </plurals>
+
+    <!-- Auth -->
+    <plurals name="date_hours">
+        <item quantity="other">小时</item>
+    </plurals>
+    <plurals name="date_days">
+        <item quantity="other">天</item>
+    </plurals>
+    <string name="common_err">%1$s</string>
+    <string name="start">开始</string>
+    <string name="end">结束</string>
+    <string name="settings_experimental">实验性</string>
+    <string name="wizard_title_doze_whitelist">忽略电池优化</string>
+    <string name="wizard_descr_doze_whitelist">将推送服务加入电池优化白名单。</string>
+
+    <!-- Log -->
+    <string name="allow">允许</string>
+    <string name="deny">拒绝</string>
+
+    <!-- Notification -->
+    <string name="log_push_err">Push 服务异常, 请尝试取消对管理器应用的唤醒拦截、关闭 ROM 的高级优化功能。</string>
+    <string name="log_none">尚无日志</string>
+    <string name="log_share_error">无法分享日志：%1$s</string>
+    <string name="log_clear_done">清空日志成功</string>
+    <string name="activity_intent_not_found">没有应用可以处理请求.</string>
+    <string name="log_share_title">分享</string>
+
+    <string name="notification_group_config">配置</string>
+
+    <!-- Stats permission guide -->
+    <!-- TOOD: Need a simple explanation to users -->
+    <string name="notification_category_alive">Push 状态</string>
+    <string name="notification_category_warning">警告</string>
+
+    <string name="notification_alive">推送服务运行中</string>
+
+    <string name="notification_group_applications">应用程序</string>
+    <string name="notification_stats_permission_title">请授予“使用情况”权限</string>
+
+    <string name="notification_stats_permission_text">我们需要“使用情况”权限才能正常运行，请授权。</string>
+    <string name="title_activity_keepalive">Push 后台活动支持</string>
+
+    <string name="activity_rom_keepalive">您的 ROM 可能拦截推送服务的正常运行，请在您的 ROM 的有关设置中将 Push 应用加入白名单（如电池优化、唤醒拦截等功能）。\n您也可尝试打开系统的“最近任务”界面，将本界面“锁定”以保持服务的后台运行。</string>
+
+    <string name="see_pass_though_msg">穿透消息，请打开应用查看</string>
+    <string name="welcome_island_title">MiPush 已激活</string>
+    <string name="welcome_island_content">欢迎使用 MiPush</string>
+
+    <string name="settings_clear">清理</string>
+    <string name="title_activity_advance_setting">高级配置</string>
+
+    <string name="settings_clear_history_summary">清理超过 7 天的消息记录</string>
+
+    <string name="settings_clear_history">清理记录</string>
+
+
+    <string name="accessibility_desc">当使用情况统计不可用时，用于前台应用检测的辅助兜底能力。</string>
+    <string name="settings_options">配置</string>
+
+    <string name="debug_test_title">这是一条%1$s测试</string>
+
+
+    <string name="debug_test_content">这是%1$s测试内容</string>
+    <string name="settings_debug_mode">启用调试模式</string>
+    <string name="settings_debug_mode_summary">通知中展示调试动作，打印完整日志</string>
+    <string name="settings_log_sanitization">日志脱敏</string>
+    <string name="settings_log_sanitization_summary">开启后隐藏 token、regId、设备标识等敏感内容。默认关闭。</string>
+    <string name="settings_show_all_events">展示所有事件</string>
+    <string name="settings_show_all_events_summary">包含默认规则隐藏的事件记录。</string>
+    <string name="pref_color_status_bar_icon_title">状态栏通知图标</string>
+    <string name="pref_color_status_bar_icon_summary">配置 MiPush 相关通知和全局状态栏图标颜色策略</string>
+    <string name="pref_color_status_bar_icon_mipush_title">单色图标</string>
+    <string name="pref_color_status_bar_icon_mipush_summary">默认开启：MiPush 通知的状态栏图标统一为白色单色剪影；关闭则保留应用原本的颜色</string>
+    <string name="pref_color_status_bar_icon_global_title">单色增强</string>
+    <string name="pref_color_status_bar_icon_global_summary">将非 MiPush 代理的通知也同步为单色，需先开启单色图标</string>
+    <string name="pref_color_status_bar_icon_restart_title">需要重启手机</string>
+    <string name="pref_color_status_bar_icon_restart_message">修改此项会重启手机，否则状态栏图标单色策略不会在系统侧完整生效。</string>
+    <string name="pref_color_status_bar_icon_restart_confirm">应用并重启手机</string>
+    <string name="pref_color_status_bar_icon_reboot_failed">设置已保存，但设备重启失败，请检查 Root 权限</string>
+    <string name="settings_switch_enabled_feedback">%1$s：已开启</string>
+    <string name="settings_switch_disabled_feedback">%1$s：已关闭</string>
+    <string name="settings_runtime_preference_update_failed">无法更新%1$s，请确认推送服务已连接</string>
+    <string name="settings_start_foreground_service">推送服务保活</string>
+    <string name="settings_start_foreground_service_summary">控制是否持续显示保活前台通知；服务启动阶段仍会先完成前台化以保证系统兼容性</string>
+
+    <string name="app_name">推送服务</string>
+    <string name="enable">启用</string>
+    <string name="fail">失败</string>
+    <string name="apply">应用</string>
+
+    <!-- Preference -->
+    <string name="retry">重试</string>
+    <string name="app_list_unavailable_title">应用列表不可用</string>
+    <string name="app_list_unavailable_runtime_missing">未安装 XMSF 运行时，或当前无法访问。</string>
+    <string name="app_list_unavailable_permission_denied">管理器没有读取 XMSF 运行时应用列表的授权。</string>
+    <string name="app_list_unavailable_binding">正在连接 XMSF 运行时，请稍后重试。</string>
+    <string name="app_list_unavailable_incompatible">管理器与 XMSF 运行时版本不兼容。</string>
+    <string name="app_list_unavailable_disconnected">当前无法连接 XMSF 运行时。</string>
+    <string name="app_list_unavailable_failed">XMSF 运行时未能加载应用列表。</string>
+    <string name="exit">退出</string>
+    <string name="preference_title">推送设置</string>
+    <string name="main_event">记录</string>
+    <string name="main_overview">概览</string>
+
+    <!-- Message when change enable status -->
+    <string name="main_apps">应用</string>
+    <string name="main_configs">配置</string>
+    <string name="main_settings">设置</string>
+    <string name="config_remote_source_label">远端源：%1$s</string>
+    <string name="config_remote_source_with_accelerator_label">远端源：%1$s\n加速源：%2$s</string>
+    <string name="config_remote_source_title">远端源</string>
+    <string name="config_remote_repository_label">仓库或项目 URL</string>
+    <string name="config_remote_branch_label">分支</string>
+    <string name="config_remote_accelerator_label">原始文件加速源</string>
+    <string name="config_remote_source_default_hint">内置默认：%1$s</string>
+    <string name="config_remote_source_config_suffix">（配置源）</string>
+    <string name="config_icon_source_title">图标资源</string>
+    <string name="config_icon_source_value">点击更新（%1$s）</string>
+    <string name="config_icons_updating">正在更新图标资源…</string>
+    <string name="icon_library_unavailable_title">图标库不可用</string>
+    <string name="icon_library_unavailable_summary">尚未连接运行时进程。请在通知服务运行后重新打开本页。</string>
+    <string name="icon_library_error_title">图标库加载失败</string>
+    <string name="icon_library_error_summary">运行时进程暂时不可用，自动重试仍未成功。</string>
+    <string name="icon_library_retry">重试</string>
+    <string name="icon_library_load_more">加载更多</string>
+    <string name="icon_library_loaded_all">已加载全部图标</string>
+    <string name="icon_item_updated">更新：%1$s</string>
+    <string name="icon_item_overlay">叠加</string>
+    <string name="config_import_dialog_title">本地导入</string>
+    <string name="config_import_dialog_message">请选择要导入的文件类型：配置还是图标。</string>
+    <string name="config_import_configuration">导入配置</string>
+    <string name="config_import_icons">导入图标</string>
+    <string name="config_item_local">本地：%1$s</string>
+    <string name="config_item_remote">远端：%1$s</string>
+    <string name="config_item_remote_missing">未发现</string>
+    <string name="config_directory_title">本地目录</string>
+    <string name="config_directory_not_selected">还没有选择本地配置目录。</string>
+    <string name="config_directory_label">本地目录：%1$s</string>
+    <string name="config_last_sync_label">最近远端同步：%1$s</string>
+    <string name="config_search_placeholder">搜索配置文件名或包名</string>
+    <string name="config_choose_directory">选择目录</string>
+    <string name="config_import_local">本地导入</string>
+    <string name="config_pull_remote">拉取线上</string>
+    <string name="config_reload">重新加载</string>
+    <string name="config_sync_progress">同步中 %1$d/%2$d · %3$s</string>
+    <string name="config_remote_error">远端错误：%1$s</string>
+    <string name="action_reset_default">恢复默认</string>
+    <string name="config_preview_title">配置预览</string>
+    <string name="config_preview_summary">浏览和编辑配置文件。</string>
+    <string name="icon_preview_title">图标预览</string>
+    <string name="icon_preview_summary">浏览和编辑图标配置。</string>
+    <string name="config_empty_title">暂无可显示的配置</string>
+    <string name="config_empty_summary">你可以先浏览远端配置，也可以选择本地目录后导入、编辑并立即生效。</string>
+    <string name="config_status_in_sync">已同步</string>
+    <string name="config_status_remote_only">仅远端</string>
+    <string name="config_status_local_only">仅本地</string>
+    <string name="config_status_local_override">本地优先</string>
+    <string name="config_status_invalid">JSON 无效</string>
+    <string name="config_source_local">导入本地</string>
+    <string name="config_source_remote">远端</string>
+    <string name="config_editor_meta">本地更新时间：%1$s · 远端更新时间：%2$s</string>
+    <string name="config_editor_empty_title">没有可预览的内容</string>
+    <string name="config_editor_empty_summary">当前配置在本地和远端都没有可用内容。</string>
+    <string name="config_edit">编辑本地副本</string>
+    <string name="config_reset_remote">重置为远端</string>
+    <string name="config_time_unknown">未知</string>
+
+    <!-- About -->
+
+    <!-- Wizard -->
+
+    <string name="wizard_descr"><![CDATA[这是一个让任何设备都能使用小米系统级推送的项目，它能接管其它应用的推送（通知），以达到省电的效果。更多详情访问本项目项目于 GitHub 的页面：<a href="https://github.io/github/magisk317/MiPushFramework">MiPushFramework</a>]]></string>
+    <string name="wizard_connect">正在连接</string>
+
+    <string name="wizard_title_run_in_background">允许后台活动</string>
+    <string name="wizard_descr_run_in_background">您禁用了推送服务的后台运行权限，它将无法正常完成后台推送，您%1$s，然后点按下一步。</string>
+    <string name="run_in_background_appops_root">需要使用 Root 解除禁用（我们可以自动完成）</string>
+
+    <string name="run_in_background_rikka_appops"><![CDATA[
+需要打开 <b>App Ops</b> 工具，并为其授予 <b>在后台运行或被唤醒</b> 权限
+    ]]></string>
+    <string name="rikka_appops_help_toast"><![CDATA[
+请授予 <b>在后台运行或被唤醒</b> 权限
+    ]]></string>
+
+    <string name="wizard_title_stats_permission">使用情况统计</string>
+    <string name="wizard_title_stats_permission_text">启用“使用情况”前台检测。与“辅助模式”二选一即可，用于判断应用是否在前台。</string>
+
+    <string name="wizard_title_accessibility_permission">辅助模式前台检测</string>
+    <string name="wizard_title_accessibility_text">启用辅助模式前台检测。与“使用情况统计”二选一即可，兼容性更好但性能稍差。</string>
+
+    <string name="wizard_title_root_permission">Root 权限</string>
+    <string name="wizard_title_root_permission_text">Root 按 Android 用户和应用分别授权。当前空间的运行时操作需要授权 XMSF，MiPush 管理器状态单独显示。</string>
+    <string name="wizard_root_permission_granted_toast">Root 权限已授权</string>
+    <string name="wizard_root_permission_denied_toast">Root 权限未授权</string>
+    <string name="wizard_root_permission_target_granted_toast">%1$s Root 权限已授权</string>
+    <string name="wizard_root_permission_target_denied_toast">%1$s Root 权限未授权</string>
+    <string name="wizard_root_space_primary">当前空间：主空间（User 0）</string>
+    <string name="wizard_root_space_dual">当前空间：应用分身（User 999）</string>
+    <string name="wizard_root_space_other">当前空间：User %1$d</string>
+    <string name="wizard_root_manager_title">MiPush 管理器</string>
+    <string name="wizard_root_manager_summary">当前实现中为可选项，管理器本地 Root 操作独立使用。</string>
+    <string name="wizard_root_runtime_title">XMSF 推送服务</string>
+    <string name="wizard_root_runtime_summary">当前 Android 用户中的运行时命令需要此授权。</string>
+    <string name="wizard_root_status_granted">已授权</string>
+    <string name="wizard_root_status_not_granted">未授权</string>
+    <string name="wizard_root_status_unavailable">不可用</string>
+    <string name="wizard_root_request">授权</string>
+
+    <string name="wizard_title_alert_window_permission">显示在其他应用上层</string>
+    <string name="wizard_title_alert_window_text">您需要授予“显示在其他应用上层”权限，否则您无法通过配置自动调起应用。</string>
+
+    <string name="wizard_descr_finish">大功告成！本软件已准备就绪。</string>
+    <string name="status_ok">成功</string>
+    <string name="wizard_title_finish_button">开启推送之旅</string>
+    <string name="wizard_title_pending_button">请先完成授权</string>
+    <string name="wizard_title_continue_button">先进入应用</string>
+    <string name="wizard_subtitle">请授予以下权限以继续使用推送服务</string>
+    <string name="status_granted">已授权</string>
+    <string name="status_pending">待授权</string>
+
+    <!-- Date parse -->
+    <string name="status_deny_disable">禁用推送，已拒绝</string>
+    <!-- Date format -->
+    <!-- Just, < 1 min -->
+    <string name="status_deny_user">您已拒绝</string>
+    <!-- 1 Minute ago, >= 1 Minute, < 60 Minutes -->
+    <string name="date_just">刚刚</string>
+    <string name="date_month">个月</string>
+    <!-- 1 Hours ago, >= 1 hour, < 24 hours -->
+    <string name="date_format_normal">%1$s %2$s前</string>
+    <!-- 1 Day ago, >= 1 day, < days -->
+    <string name="date_format_just">%1$s</string>
+    <!-- For non-just and non-long format -->
+    <string name="date_format_long">%1$s</string>
+    <!-- For Just format -->
+    <string name="action_edit_permission_title">修改权限（保存 ----></string>
+    <string name="action_app_info">应用信息</string>
+    <!-- For Long ago format -->
+    <string name="permissions">权限</string>
+
+    <!-- Permission -->
+    <string name="permission_allow_receive">接收通知栏消息</string>
+    <string name="permission_allow_receive_command">接收命令消息（无通知栏提醒）</string>
+    <string name="permission_allow_receive_register_result">接收注册结果</string>
+    <string name="register_type_allow">允许并自动注册</string>
+
+    <string name="register_type_deny">阻止注册</string>
+    <string name="register_type_ask">询问（默认）</string>
+    <string name="settings_enhance">增强</string>
+    <string name="settings_service_setting">服务配置</string>
+    <string name="settings_service_advance_setting">高级配置</string>
+
+    <!-- Settings -->
+    <string name="settings_summary_service_advance_setting">进入高级配置界面</string>
+    <string name="settings_configuration_directory">设置配置目录</string>
+    <string name="settings_XMPP_server">设置 XMPP 服务器</string>
+    <string name="settings_XMPP_server_summary">设置 发送/接收 消息的服务器</string>
+    <string name="settings_XMPP_server_load_failed">XMSF 运行时不可用，连接恢复前无法读取或修改服务器设置。</string>
+    <string name="settings_XMPP_server_hint">主机名或主机名:端口</string>
+    <string name="settings_XMPP_server_saved">XMPP 服务器已更新</string>
+    <string name="settings_XMPP_server_save_failed">XMPP 服务器更新失败</string>
+    <string name="settings_permission_check">权限检查</string>
+    <string name="settings_permission_check_summary">重新打开权限引导页，补齐未授权权限。</string>
+    <string name="settings_connection_status">诊断</string>
+    <string name="settings_connection_status_summary">查看实时 XMPP 连接详情与统计数据。</string>
+
+    <string name="connection_status_title">诊断</string>
+    <string name="connection_status_loading">加载中…</string>
+    <string name="connection_status_state_connected">已连接</string>
+    <string name="connection_status_state_connecting">连接中</string>
+    <string name="connection_status_state_disconnected">已断开</string>
+    <string name="connection_status_refresh">刷新连接状态</string>
+    <string name="connection_status_force_reconnect">强制重连</string>
+    <string name="connection_status_reconnect_requested">已请求重新连接</string>
+    <string name="connection_status_reconnect_failed">无法请求重新连接</string>
+    <string name="connection_status_session_count">会话 #%1$d</string>
+    <string name="connection_status_section_module">模块挂钩</string>
+    <string name="connection_status_module_notification_hook">通知接管</string>
+    <string name="connection_status_module_notification_hook_summary">NotificationManagerEx 已挂钩，系统以目标应用身份发送通知。</string>
+    <string name="connection_status_module_identity_hook">身份桥</string>
+    <string name="connection_status_module_identity_hook_summary">NotificationIdentityBridge 已挂钩，渠道身份按目标应用解析。</string>
+    <string name="connection_status_module_hooked">已生效</string>
+    <string name="connection_status_module_not_hooked">未生效</string>
+    <string name="connection_status_section_server">服务器</string>
+    <string name="connection_status_host">主机</string>
+    <string name="connection_status_host_summary">XMPP 服务器主机名</string>
+    <string name="connection_status_ip">IP</string>
+    <string name="connection_status_ip_summary">服务器实际解析的 IP 地址</string>
+    <string name="connection_status_section_timing">时间</string>
+    <string name="connection_status_connected_at">连接时间</string>
+    <string name="connection_status_connected_at_summary">本次连接建立的时间点</string>
+    <string name="connection_status_session_duration">会话时长</string>
+    <string name="connection_status_session_duration_summary">本次连接已持续的时间</string>
+    <string name="connection_status_section_heartbeat">心跳</string>
+    <string name="connection_status_keepalive_interval">保活间隔</string>
+    <string name="connection_status_keepalive_interval_summary">TCP 保活心跳间隔，防止 NAT 超时断连</string>
+    <string name="connection_status_ping_interval">Ping 间隔</string>
+    <string name="connection_status_ping_interval_summary">XMPP 层 Ping，检测连接是否仍然活跃</string>
+    <string name="connection_status_timer">计时器</string>
+    <string name="connection_status_timer_summary">当前驱动健康检查的计时器实现</string>
+    <string name="connection_status_exact_alarm">精确闹钟</string>
+    <string name="connection_status_exact_alarm_summary">系统是否允许 XMSF 使用精确闹钟</string>
+    <string name="connection_status_available">可用</string>
+    <string name="connection_status_unavailable">不可用</string>
+    <string name="connection_status_active">活跃</string>
+    <string name="connection_status_inactive">未活跃</string>
+    <string name="connection_status_enabled">已启用</string>
+    <string name="connection_status_disabled">未启用</string>
+    <string name="connection_status_alarm_mode">闹钟模式</string>
+    <string name="connection_status_alarm_mode_summary">exact 或 inexact；inexact 表示精确闹钟不可用或被拒绝</string>
+    <string name="connection_status_alarm_alive">闹钟存活</string>
+    <string name="connection_status_alarm_alive_summary">XMSF 是否仍持有有效的心跳闹钟状态</string>
+    <string name="connection_status_next_timer">预计下次触发</string>
+    <string name="connection_status_next_timer_summary">根据 elapsed realtime 换算的预计触发时间</string>
+    <string name="connection_status_last_timer_callback">最近 Timer 回调</string>
+    <string name="connection_status_timer_callback_delay">相对预计时间延迟 %1$d ms</string>
+    <string name="connection_status_doze_whitelist">XMSF Doze 白名单</string>
+    <string name="connection_status_doze_whitelist_summary">实际检查包：%1$s</string>
+    <string name="connection_status_device_idle">当前设备 Doze</string>
+    <string name="connection_status_device_idle_summary">仅表示设备当前是否处于 Doze，不代表白名单权限</string>
+    <string name="connection_status_section_recovery">最近连接恢复</string>
+    <string name="connection_status_last_disconnect_reason">最近断线原因</string>
+    <string name="connection_status_last_disconnect_reason_summary">22 是 ping timeout，9 是 read/socket error</string>
+    <string name="connection_status_last_ping">最近 Ping</string>
+    <string name="connection_status_last_ping_summary">最近一次客户端心跳发送时间</string>
+    <string name="connection_status_last_read_alive">最近读活跃</string>
+    <string name="connection_status_last_read_alive_summary">最近一次收到数据或 pong 的时间</string>
+    <string name="connection_status_last_timeout">最近 Ping timeout</string>
+    <string name="connection_status_last_timeout_summary">10 秒内没有新的 readAlive 时记录</string>
+    <string name="connection_status_reconnect_started">最近开始重连</string>
+    <string name="connection_status_reconnect_started_summary">连接状态进入 connecting 的时间</string>
+    <string name="connection_status_reconnect_latency">最近重连耗时</string>
+    <string name="connection_status_reconnect_latency_summary">从 connecting 到 challenge 成功的耗时</string>
+    <string name="connection_status_disconnect_to_reconnect">断线到开始重连</string>
+    <string name="connection_status_disconnect_to_reconnect_summary">从记录断线或 Ping timeout 到进入重连的耗时</string>
+    <string name="connection_status_reconnect_to_connected">开始重连到连接成功</string>
+    <string name="connection_status_reconnect_to_connected_summary">从开始重连到连接成功的耗时</string>
+    <string name="connection_status_unknown">未知</string>
+    <string name="connection_status_section_messages">消息</string>
+    <string name="connection_status_downstream">下行</string>
+    <string name="connection_status_downstream_summary">从服务器收到的下行消息总数</string>
+    <string name="connection_status_delivered">投递</string>
+    <string name="connection_status_delivered_summary">成功投递到目标应用的消息数</string>
+    <string name="connection_status_duplicates">重复</string>
+    <string name="connection_status_duplicates_summary">被识别为重复而丢弃的消息数</string>
+    <string name="connection_status_acks">确认</string>
+    <string name="connection_status_acks_summary">已向服务器发送确认回执的消息数</string>
+    <string name="connection_status_section_channels">通道与注册</string>
+    <string name="connection_status_framework_registered">框架注册</string>
+    <string name="connection_status_framework_registered_summary">xmsf 自身是否已向小米推送服务器注册</string>
+    <string name="connection_status_registered_packages">已注册包</string>
+    <string name="connection_status_registered_packages_summary">已向小米推送服务器注册的应用数</string>
+    <string name="connection_status_tracked_channels">已追踪通道</string>
+    <string name="connection_status_tracked_channels_summary">当前追踪的推送通道总数</string>
+    <string name="connection_status_bound_channels">已绑定通道</string>
+    <string name="connection_status_bound_channels_summary">已绑定且可接收消息的活跃通道数</string>
+    <string name="connection_status_not_available">—</string>
+
+    <string name="settings_get_log">保存日志</string>
+    <string name="settings_get_log_summary">构建日志包并保存到本地存储，用于调试。</string>
+    <string name="settings_runtime_log_retention_days">日志保留天数</string>
+    <string name="settings_runtime_log_retention_days_hint">单位：天；覆盖 jsonl/崩溃/导出 zip/staging/临时文件，最小值 1，默认 2。</string>
+    <string name="settings_runtime_log_retention_days_error">请输入大于等于 1 的整数。</string>
+    <string name="runtime_log_export_failed">导出失败：%1$s</string>
+    <string name="runtime_log_exporting">日志导出中…</string>
+    <string name="runtime_log_saved">日志已保存到本地</string>
+    <string name="runtime_log_share_failed">分享失败：%1$s</string>
+    <string name="runtime_log_cleared">日志与崩溃文件已清空</string>
+    <string name="runtime_log_clear_partial_failed">部分清空失败：%1$s</string>
+    <string name="runtime_log_clear_confirm_title">清空日志</string>
+    <string name="runtime_log_clear_confirm_message">确认要清空所有日志和崩溃文件吗？</string>
+    <string name="runtime_log_clear_summary">清空所有运行日志和崩溃文件</string>
+    <string name="action_share">分享</string>
+    <string name="action_clear">清空</string>
+    <string name="action_delete">删除</string>
+    <string name="action_undo">撤销</string>
+    <string name="action_back">返回</string>
+
+    <string name="recent_activity_view">查看近期活动</string>
+    <string name="recent_activity_title">近期活动</string>
+    <string name="recent_activity_grouped_summary">按应用查看近期事件历史。</string>
+    <string name="recent_activity_stream_summary">按时间顺序查看完整事件流。</string>
+    <string name="recent_activity_mode_grouped">按应用</string>
+    <string name="recent_activity_mode_stream">事件流</string>
+    <string name="recent_activity_action_show_events">显示事件流</string>
+    <string name="recent_activity_action_group_by_app">按应用分组</string>
+    <string name="recent_activity_group_by_app_summary">把记录按来源应用聚合展示。</string>
+    <string name="recent_activity_action_retention">保留期限</string>
+    <string name="event_retention_dialog_title">记录保留期限</string>
+    <string name="event_retention_dialog_hint">保留最近多少天的事件记录（注册状态记录始终保留）。</string>
+    <string name="event_retention_dialog_error">请输入不小于 1 的天数。</string>
+    <string name="event_cleanup_title">清理记录</string>
+    <string name="event_cleanup_summary">按日历选择清理某天或某天之前的记录</string>
+    <string name="event_cleanup_calendar_hint">有记录的日期已高亮，数字为当天可清理条数。</string>
+    <string name="event_cleanup_preset_7">清理 7 天前</string>
+    <string name="event_cleanup_preset_30">清理 30 天前</string>
+    <string name="event_cleanup_preset_all">清理全部</string>
+    <string name="event_cleanup_day_count">%1$d</string>
+    <string name="event_cleanup_day_only">仅清理当天（%1$s）</string>
+    <string name="event_cleanup_day_and_before">清理此日期及之前（%1$s 起）</string>
+    <string name="event_cleanup_confirm_title">确认清理</string>
+    <string name="event_cleanup_none">没有可清理的记录</string>
+    <string name="event_cleanup_failed">清理失败，请检查 MiPush 运行时连接。</string>
+    <string name="event_initial_load_title">正在准备记录</string>
+    <string name="event_initial_load_summary">首次加载会处理历史记录，可能需要一些时间，请不要关闭页面。</string>
+    <string name="event_load_failed_title">记录加载失败</string>
+    <string name="event_load_failed_summary">运行时仍在处理或暂时不可用，请稍后下拉重试。</string>
+    <string name="event_cleanup_prev_month">上个月</string>
+    <string name="event_cleanup_next_month">下个月</string>
+    <string name="recent_activity_updated_at">更新于 %1$s</string>
+    <string name="recent_activity_disabled_label">已禁用</string>
+    <string name="recent_activity_filter_prefix">筛选</string>
+    <string name="recent_activity_filter_type_title">消息类型</string>
+    <string name="recent_activity_filter_type_all">全部消息</string>
+    <string name="recent_activity_filter_type_notification">普通消息</string>
+    <string name="recent_activity_filter_type_pass_through">透传消息</string>
+    <string name="recent_activity_filter_type_registration">注册相关</string>
+    <string name="recent_activity_filter_type_other">其他类型</string>
+    <string name="recent_activity_filter_status_title">状态分类</string>
+    <string name="recent_activity_filter_status_all">全部状态</string>
+    <string name="recent_activity_filter_status_normal">正常</string>
+    <string name="recent_activity_filter_status_disabled">已禁用</string>
+    <string name="recent_activity_filter_status_denied">已拒绝</string>
+    <string name="recent_activity_deleted">记录已删除</string>
+    <string name="recent_activity_delete_failed">删除记录失败</string>
+    <string name="recent_activity_restore_failed">撤销删除失败</string>
+
+
+    <!-- Recent Activity -->
+
+    <!-- Update -->
+    <string name="application_info_label">应用信息</string>
+    <string name="connect_fail_doze">需要关闭电池优化</string>
+
+
+    <string name="about_version">版本 %1$s（%2$s）</string>
+    <string name="app_registered">已注册</string>
+    <string name="app_registration_observed">有活动记录</string>
+
+
+    <string name="app_registered_error">注册异常</string>
+
+
+    <string name="request_battery_whitelist">Push 应用需要被加入“电池优化”白名单才能正常运行</string>
+    <string name="status_app_not_registered">未注册</string>
+    <string name="footer_app_ignored_not_registered">已忽略 %1$s 个未使用系统推送的应用</string>
+
+    <string name="status_app_not_registered_detail_without_fake_suggest"><![CDATA[
+应用是否注册由其自行决定，应用一般在其启动时自动注册。部分应用只在MIUI设备上发起注册。\n如有疑问，欢迎参阅 <b><a href="https://github.com/MiPushFramework/MiPushFramework/wiki/%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BC%8F%E6%B3%A8%E5%86%8C%E9%97%AE%E9%A2%98%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88">应用程序注册问题解决方案</a></b> 和 <b><a href="https://github.com/MiPushFramework/MiPushFramework/wiki/%5B%E5%B8%AE%E5%8A%A9%5D-%E5%BA%94%E7%94%A8%E6%B3%A8%E5%86%8C%E9%97%AE%E9%A2%98">[帮助] 应用注册问题</a></b>。
+    ]]></string>
+
+    <string name="status_app_not_registered_detail_with_fake_suggest"><![CDATA[
+应用是否注册由其自行决定，应用一般在其启动时自动注册。当前项目会先尝试运行时兼容与自动注册；如果已经观察到注册失败、反注册，或者本地注册状态始终无法对齐，建议尝试使用 <b><a href="https://github.com/Seyud/device_faker">Device Faker</a></b> 的 <b>resetprop</b> 模式，对目标应用伪装为 MIUI / 小米设备。该模式支持修改只读属性，并会在应用退出或切换后自动还原，配置说明可参考 <b><a href="https://github.com/Seyud/device_faker/blob/main/docs/CONFIG.md">CONFIG.md</a></b>。如有疑问，欢迎参阅 <b><a href="https://github.com/MiPushFramework/MiPushFramework/wiki/%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BC%8F%E6%B3%A8%E5%86%8C%E9%97%AE%E9%A2%98%E8%A7%A3%E5%86%B3%E6%96%B9%E6%A1%88">应用程序注册问题解决方案</a></b> 和 <b><a href="https://github.com/MiPushFramework/MiPushFramework/wiki/%5B%E5%B8%AE%E5%8A%A9%5D-%E5%BA%94%E7%94%A8%E6%B3%A8%E5%86%8C%E9%97%AE%E9%A2%98">[帮助] 应用注册问题</a></b>。
+    ]]></string>
+    <string name="status_app_registered_error_desc"><![CDATA[
+注册异常一般是应用注册后又进行了反注册（可能是应用中的推送设置已停用从而主动取消注册），或者应用已存储的推送注册信息与推送服务的注册信息不匹配。如果您不需要该应用的推送，或者该应用仍然正常推送消息，可以忽略此问题。另请参阅 <b><a href="https://github.com/MiPushFramework/MiPushFramework/wiki/%5B%E5%B8%AE%E5%8A%A9%5D-%E6%B3%A8%E5%86%8C%E5%BC%82%E5%B8%B8">[帮助] 注册异常</a></b>。
+    ]]></string>
+    <string name="status_app_not_registered_title">未注册</string>
+    <string name="status_app_registered_error_title">注册异常</string>
+
+    <string name="settings_debug">调试</string>
+    <string name="settings_manage_app_notifications">管理通知</string>
+    <string name="settings_manage_app_notifications_summary">控制本应用所发通知的声音、重要度等细节。</string>
+    <string-array name="register_types">
+        <item>@string/register_type_ask</item>
+        <item>@string/register_type_allow</item>
+        <item>@string/register_type_deny</item>
+    </string-array>
+    <string name="group_notifications_for_same_session_title">堆叠同一会话的所有通知</string>
+    <string name="group_notifications_for_same_session_detail">同一会话的所有通知将会堆叠为一组，这会导致非会话通知无法堆叠</string>
+    <string name="group_notifications_for_same_session_clear_title">会话通知被点击时清空整个会话通知组</string>
+    <string name="show_pass_through">将透传消息作为通知显示</string>
+    <string name="notification_channels">通知渠道</string>
+    <string name="notification_channels_delete">删除</string>
+    <string name="notification_channels_setting">设置</string>
+    <string name="notification_channels_copy_id">复制通知渠道ID</string>
+    <string name="notification_channels_delete_failed">删除通知渠道失败</string>
+
+    <string name="zygisk_status">Zygisk配置</string>
+    <string name="zygisk_status_summary">管理模块状态与应用伪装</string>
+    <string name="zygisk_enabled">已开启</string>
+    <string name="zygisk_disabled">未开启或未授权 Root</string>
+    <string name="zygisk_unavailable">暂时无法读取</string>
+    <string name="zygisk_spoof_switch">启用 Zygisk 机型伪装</string>
+    <string name="zygisk_spoof_switch_summary">开启后，Zygisk 模块将在该应用内伪装设备属性，促使其主动注册 MiPush。</string>
+    <string name="zygisk_save">保存 Zygisk 配置</string>
+    <string name="zygisk_save_success">Zygisk 配置已保存</string>
+    <string name="zygisk_save_failed">Zygisk 配置保存失败</string>
+    <string name="zygisk_config_read_error">无法读取 Zygisk 配置：%1$s</string>
+    <string name="zygisk_module_status">模块状态：%1$s</string>
+    <string name="zygisk_unavailable_detail">暂时无法读取：%1$s</string>
+    <string name="zygisk_scan_title">扫描已安装应用</string>
+    <string name="zygisk_scan">扫描已安装应用</string>
+    <string name="zygisk_scan_error">无法扫描已安装应用：%1$s</string>
+    <string name="zygisk_profile_title">设备伪装配置</string>
+    <string name="zygisk_profile_miui14">MIUI 14</string>
+    <string name="zygisk_profile_os4">OS 4</string>
+    <string name="zygisk_observe_keys">记录被伪装的属性键</string>
+
+    <string name="message_type_notification">通知消息</string>
+    <string name="message_type_pass_through">透传消息</string>
+    <string name="action_notify">重放</string>
+    <string name="action_configurate">执行配置</string>
+    <string name="action_search">搜索</string>
+    <string name="action_scroll_to_top">回到顶部</string>
+    <string name="action_expand">展开</string>
+    <string name="action_collapse">收起</string>
+    <string name="last_receive">最近推送：</string>
+    <string name="mipush_services_not_found">找不到服务</string>
+    <string name="force_register_requires_root">强制注册需要 Root 权限</string>
+    <string name="force_register_unavailable">当前构建缺少强制注册所需组件，已跳过</string>
+    <string name="force_register_sent">已发送强制注册请求</string>
+    <string name="force_register_failed">强制注册失败，请查看日志</string>
+    <string name="mock_notification_missing_regsec">无法重放这条加密推送：缺少注册密钥（regSec）。请先让应用重新注册后再试。</string>
+    <string name="mock_notification_blocked_by_permission">重放被应用设置或通知权限拦截。</string>
+    <string name="mock_notification_dispatched">重放已分发；当前运行路径无法确认通知最终发布。</string>
+    <string name="mock_notification_posted">重放通知已发布。</string>
+    <string name="mock_notification_failed_channel_disabled">重放失败：通知渠道已禁用，请在系统通知设置中启用该渠道。</string>
+    <string name="mock_notification_failed_event_not_found">重放失败：数据库中未找到该记录（可能已被历史清理或删除）。</string>
+    <string name="mock_notification_failed_payload_missing">重放失败：该事件缺少原始推送载荷（Payload），无法重新构造通知。</string>
+    <string name="mock_notification_failed_service_not_ready">重放失败：后台推送服务未就绪或响应超时。</string>
+    <string name="mock_notification_failed_app_not_installed">重放失败：目标应用未安装或已被卸载。</string>
+    <string name="mock_notification_failed">重放推送失败，请查看日志。</string>
+    <string name="mock_notification_no_receiver">重放失败：目标应用没有匹配此推送的接收器。</string>
+    <string name="settings_home_service_title">服务权限</string>
+    <string name="settings_home_service_summary">服务器、前台服务与权限检查</string>
+    <string name="settings_home_keepalive_title">系统保活</string>
+    <string name="settings_home_keepalive_summary">进程优先级与系统限制绕过</string>
+    <string name="settings_home_notifications_title">通知呈现</string>
+    <string name="settings_home_notifications_summary">灵动岛与焦点通知显示</string>
+    <string name="settings_home_appearance_title">外观显示</string>
+    <string name="settings_home_appearance_summary">主题与状态栏图标。</string>
+    <string name="settings_configurations_entry_summary">打开并编辑 MiPush 配置文件。</string>
+    <string name="settings_configurations_management_title">配置管理</string>
+    <string name="settings_home_integrations_title">系统集成</string>
+    <string name="settings_home_integrations_summary">应用双开、Zygisk 集成与配置文件管理。</string>
+    <string name="settings_home_services_title">服务与诊断</string>
+    <string name="settings_home_services_summary">运行时交付、更新检查与诊断日志</string>
+    <string name="settings_dual_app_title">启用双开</string>
+    <string name="settings_dual_app_summary">将 xmsf 和 MiPush 安装到分身空间（用户 999）。需要 Root 权限。</string>
+    <string name="settings_dual_app_primary_user_only_summary">双开安装由主空间（User 0）管理；当前分身只显示自身运行状态。</string>
+    <string name="pref_theme_details_title">主题详情</string>
+    <string name="pref_theme_details_summary">调色板、模糊、强调色与布局选项</string>
+    <string name="pref_choose_theme_title">主题</string>
+    <string name="pref_choose_theme_summary">跟随系统、浅色、深色或纯黑</string>
+    <string name="pref_ui_kit_style_title">界面风格</string>
+    <string name="pref_layout_scale_title">页面布局缩放</string>
+    <string name="layout_scale_compact">紧凑</string>
+    <string name="layout_scale_standard">标准</string>
+    <string name="layout_scale_comfortable">舒适</string>
+    <string name="ui_kit_style_expressive">Expressive</string>
+    <string name="ui_kit_style_miuix">Miuix</string>
+    <string name="theme_follow_system">自动（跟随系统）</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="theme_black">纯黑</string>
+    <string name="pref_dynamic_color_title">动态取色</string>
+    <string name="pref_monet_title">Monet 调色板</string>
+    <string name="pref_monet_summary">根据种子颜色和样式生成完整的 Material 调色板。</string>
+    <string name="pref_palette_style_title">调色板样式</string>
+    <string name="pref_color_spec_title">颜色规范</string>
+    <string name="pref_surface_blur_title">表面模糊</string>
+    <string name="pref_surface_blur_summary">设备支持 RuntimeShader 时模糊共享 UI 表面，否则使用稳定的半透明表面。</string>
+    <string name="palette_style_tonal_spot">Tonal Spot</string>
+    <string name="palette_style_neutral">Neutral</string>
+    <string name="palette_style_vibrant">Vibrant</string>
+    <string name="palette_style_expressive">Expressive</string>
+    <string name="palette_style_rainbow">Rainbow</string>
+    <string name="palette_style_fruit_salad">Fruit Salad</string>
+    <string name="palette_style_monochrome">Monochrome</string>
+    <string name="palette_style_fidelity">Fidelity</string>
+    <string name="palette_style_content">Content</string>
+    <string name="color_spec_2021">Material 3 / 2021</string>
+    <string name="color_spec_2025">Material 3 / 2025</string>
+    <string name="pref_dynamic_color_summary">未选择固定强调色时，使用系统调色板。</string>
+    <string name="pref_accent_color_title">强调色</string>
+    <string name="pref_floating_bottom_bar_title">悬浮导航栏</string>
+    <string name="pref_floating_bottom_bar_summary">让紧凑导航栏悬浮在内容上方。</string>
+    <string name="pref_floating_bottom_bar_summary_miuix">让紧凑导航栏悬浮在内容上方。液态玻璃为 Miuix 风格专属，Expressive 悬浮栏使用半透明表面。</string>
+    <string name="pref_bottom_bar_blur_title">液态玻璃</string>
+    <string name="pref_bottom_bar_blur_summary">悬浮导航栏的折射模糊、随重力高光与拖拽指示器（需 Android 13+）。</string>
+    <string name="pref_bottom_bar_backdrop_title">导航栏背景捕获</string>
+    <string name="pref_bottom_bar_backdrop_summary">在设备支持时捕获悬浮栏下方页面，呈现静态液态玻璃效果。</string>
+    <string name="pref_navigation_badges_title">导航角标</string>
+    <string name="pref_navigation_badges_summary">仅当导航项提供明确状态时显示角标。</string>
+    <string name="accent_system">系统动态色</string>
+    <string name="accent_blue">蓝色</string>
+    <string name="accent_purple">紫色</string>
+    <string name="accent_green">绿色</string>
+    <string name="accent_orange">橙色</string>
+    <string name="accent_rose">玫红</string>
+    <string name="settings_home_about_title">关于应用</string>
+    <string name="settings_home_about_summary">更新入口与项目信息</string>
+    <string name="settings_version_label">版本</string>
+    <string name="relay_mode_foreground">前台</string>
+    <string name="relay_mode_background">后台</string>
+    <string name="settings_debug_mode_enabled">详细</string>
+    <string name="settings_debug_mode_disabled">标准</string>
+    <string name="settings_group_display_and_list">显示与列表</string>
+    <string name="settings_group_data_and_debug">数据与调试</string>
+    <string name="settings_blur_radius">背景模糊强度</string>
+    <string name="settings_blur_mask_alpha">模糊遮罩透明度</string>
+    <string name="app_list_stats_total">应用总数</string>
+    <string name="app_list_stats_integrated">接入</string>
+    <string name="app_list_stats_registration">注册</string>
+    <string name="app_list_stats_registered">已注册</string>
+    <string name="app_list_stats_not_registered">未注册成功</string>
+    <string name="app_list_hero_title">应用接入概览</string>
+    <string name="action_list_settings">列表设置</string>
+    <string name="action_show_system_apps">显示系统应用</string>
+    <string name="notification_channels_section_mipush">MiPush 渠道</string>
+    <string name="notification_channels_section_native">应用原生渠道</string>
+    <string name="notification_channels_section_mipush_summary">由 MiPush 为该应用创建或使用的通知渠道。</string>
+    <string name="notification_channels_section_native_summary">目标应用自身拥有的通知渠道。</string>
+    <string name="notification_channels_managed_badge">MiPush</string>
+    <string name="notification_channels_native_badge">原生</string>
+    <string name="notification_channels_disabled_badge">已禁用</string>
+    <string name="notification_channels_loading">正在加载通知渠道…</string>
+    <string name="notification_channels_empty_title">暂无通知渠道</string>
+    <string name="notification_channels_empty_summary">当前没有可显示的通知渠道。</string>
+    <string name="notification_channels_native_only_title">检测到应用原生渠道</string>
+    <string name="notification_channels_native_only_summary">这些渠道归目标应用所有，当前页面无法显示。</string>
+    <string name="notification_channels_unavailable_title">通知渠道不可用</string>
+    <string name="notification_channels_unavailable_runtime_missing">未安装 XMSF 运行时，或当前无法访问。</string>
+    <string name="notification_channels_unavailable_permission_denied">管理器没有从 XMSF 运行时读取通知渠道的授权。</string>
+    <string name="notification_channels_unavailable_binding">正在连接 XMSF 运行时，请稍后重试。</string>
+    <string name="notification_channels_unavailable_incompatible">管理器与 XMSF 运行时版本不支持兼容的通知渠道读取。</string>
+    <string name="notification_channels_unavailable_disconnected">当前无法连接 XMSF 运行时。</string>
+    <string name="notification_channels_unavailable_failed">XMSF 运行时未能加载通知渠道。</string>
+    <string name="notification_settings_owner_xmsf">由 XMSF 包代管</string>
+    <string name="notification_settings_owner_target">归属目标应用包</string>
+    <string name="app_list_item_delivery_active">近期活跃</string>
+    <string name="app_list_item_delivery_idle">等待触发</string>
+    <string name="app_detail_force_register">启动并强制注册</string>
+    <string name="app_detail_open_system_settings">系统应用信息</string>
+    <string name="app_detail_service_status">服务状态</string>
+    <string name="app_detail_service_ready">已找到服务</string>
+    <string name="app_detail_registration_status">注册状态</string>
+    <string name="app_detail_last_push">最近推送</string>
+    <string name="app_detail_registered_state">当前活跃状态</string>
+    <string name="app_detail_registration_tip_summary">注册提示</string>
+    <string name="app_detail_activity_and_behavior">近期活动与行为</string>
+    <string name="app_detail_recent_activity_summary">查看这个应用最近的注册、到达和通知事件。</string>
+    <string name="app_detail_notifications">通知与渠道</string>
+    <string name="app_detail_block">拉黑此应用</string>
+    <string name="app_detail_block_summary">拉黑后，该应用的所有推送消息、注册请求和事件记录都将被忽略。</string>
+    <string name="app_detail_click_fallback">点击兜底（打开应用主页）</string>
+    <string name="app_detail_click_fallback_summary">点击该应用的通知时打开应用主页，而不是跟随推送的深度链接。默认关闭；仅当正常跳转异常时开启。</string>
+    <string name="app_detail_redirect_click">点击打开其他应用</string>
+    <string name="app_detail_redirect_click_summary">通知仍显示为当前应用；点击后打开你指定的应用。功能开发中。</string>
+    <string name="app_detail_redirect_click_in_development">「点击打开其他应用」功能开发中</string>
+    <string name="app_detail_island_controls">超级岛与焦点展示</string>
+    <string name="app_detail_island_controls_summary">单独配置此应用是否生成 MiPush 超级岛与焦点通知参数。</string>
+    <string name="app_detail_island_enabled">启用超级岛</string>
+    <string name="app_detail_island_enabled_summary">允许 MiPushFramework 为此应用生成超级岛参数。</string>
+    <string name="app_detail_island_focus_notification">启用焦点通知</string>
+    <string name="app_detail_island_focus_notification_summary">允许此应用使用生成的焦点参数与 SystemUI 超级岛注入。</string>
+    <string name="overview_app_stats_title">应用统计</string>
+    <string name="overview_runtime_title">运行状态</string>
+    <string name="overview_project_title">项目入口</string>
+    <string name="overview_chart_outer_title">整体接入占比</string>
+    <string name="overview_chart_inner_title">MiPush 内注册占比</string>
+    <string name="overview_chart_integrated_label">已接入</string>
+    <string name="overview_chart_not_integrated_label">未接入</string>
+    <string name="overview_chart_registered_label">已注册</string>
+    <string name="overview_chart_unregistered_label">未注册</string>
+    <string name="overview_status_working">工作中</string>
+    <string name="overview_status_not_connected">未连接</string>
+    <string name="overview_version_format">版本 %1$s</string>
+    <string name="overview_version_code_label">版本号</string>
+    <string name="commit_info">提交信息</string>
+    <string name="overview_project_github_title">GitHub 项目</string>
+    <string name="overview_project_github_summary">查看源码、发布页和后续迭代进展。</string>
+    <string name="overview_project_about_summary">查看当前版本、构建类型和基本信息。</string>
+    <string name="event_detail_developer_info">调试信息</string>
+    <string name="event_detail_soft_wrap_cd">切换是否自动换行</string>
+    <string name="event_detail_soft_wrap_off">不换行</string>
+    <string name="event_detail_soft_wrap_on">换行</string>
+    <string name="event_empty_title">暂时还没有活动</string>
+    <string name="event_empty_summary">等待应用收到推送事件，或者手动触发一次测试消息。</string>
+    <string name="notification_channels_group_summary">检查这一组通知渠道，并继续钻取具体 channel 的行为差异。</string>
+    <string name="wizard_title_ignore_battery_optimizations_permission">XMSF 电池优化豁免</string>
+    <string name="wizard_title_ignore_battery_optimizations_text">请将 com.xiaomi.xmsf（XMSF）加入电池优化白名单，否则灭屏后可能无法维持推送连接。</string>
+    <string name="wizard_title_notification_permission">通知权限</string>
+    <string name="wizard_title_notification_text">您需要授予“通知”权限，以便在 Android 13+ 上接收推送通知。</string>
+    <string name="permission_notifications_denied">请授予通知权限以测试此功能。</string>
+    <string-array name="theme_mode_entries">
+        <item>@string/theme_follow_system</item>
+        <item>@string/theme_light</item>
+        <item>@string/theme_dark</item>
+        <item>@string/theme_black</item>
+    </string-array>
+
+    <string name="pref_keepalive_oom_adj_title">OomAdj 提权</string>
+    <string name="pref_keepalive_oom_adj_summary">通过 Hook 提权让服务获得前台级别的优先级。</string>
+    <string name="pref_keepalive_anti_kill_title">防杀拦截</string>
+    <string name="pref_keepalive_anti_kill_summary">拦截系统 AMS 杀后台操作。</string>
+    <string name="pref_keepalive_standby_bypass_title">绕过待机分组</string>
+    <string name="pref_keepalive_standby_bypass_summary">强制处于 Active 分组，防止被限制后台活动。</string>
+    <string name="pref_keepalive_doze_bypass_title">绕过 Doze</string>
+    <string name="pref_keepalive_doze_bypass_summary">拦截进入打盹休眠模式。</string>
+    <string name="pref_keepalive_dedicated_service_title">推送服务-无障碍保活</string>
+    <string name="pref_keepalive_dedicated_service_summary">打开系统无障碍设置，手动启用专属保活服务。</string>
+    <string name="pref_keepalive_dedicated_service_enabled_summary">已在系统无障碍设置中启用。</string>
+    <string name="pref_keepalive_dedicated_service_disabled_summary">尚未启用，点击打开系统无障碍设置。</string>
+    <string name="pref_freeze_enabled_title">解冻冻结的应用</string>
+    <string name="pref_freeze_enabled_summary">冻结的应用仍可接收通知，点击通知将自动解冻并打开应用。</string>
+    <string name="pref_freeze_refreeze_policy_title">重新冻结策略</string>
+    <string name="pref_freeze_refreeze_delay_title">重新冻结延迟</string>
+    <string name="pref_freeze_refreeze_delay_summary">启动 %1$d 分钟后重新冻结</string>
+    <string name="pref_freeze_refreeze_delay_hint">1 到 120 分钟之间</string>
+    <string name="pref_freeze_refreeze_delay_error">请输入 1 到 120 之间的分钟数</string>
+    <string name="pref_freeze_policy_never">不自动重新冻结</string>
+    <string name="pref_freeze_policy_screen_off">熄屏时重新冻结</string>
+    <string name="pref_freeze_policy_timed">延迟后重新冻结</string>
+    <string name="pref_freeze_policy_task_removed">从最近任务中移除后重新冻结</string>
+    <string name="pref_island_enabled_title">MiPush 超级岛焦点展示</string>
+    <string name="pref_island_enabled_summary">为通知生成并注入 MiPush 内置焦点通知参数。</string>
+    <string name="pref_island_timeout_title">超级岛超时</string>
+    <string name="pref_island_timeout_hint">单位：秒，最小值 1，默认 5。</string>
+    <string name="pref_island_timeout_error">请输入大于等于 1 的整数。</string>
+    <string name="pref_island_first_float_title">首次浮动</string>
+    <string name="pref_island_first_float_summary">通知首次出现时展示浮动超级岛。</string>
+    <string name="pref_island_enable_float_title">浮动模式</string>
+    <string name="pref_island_enable_float_summary">允许超级岛浮动显示在状态栏上方。</string>
+    <string name="pref_island_show_notification_title">显示超级岛通知</string>
+    <string name="pref_island_show_notification_summary">在通知栏显示超级岛代理通知。</string>
+    <string name="pref_island_show_original_notification_title">显示原通知</string>
+    <string name="pref_island_show_original_notification_summary">展示超级岛时仍保留源应用通知。</string>
+    <string name="pref_island_focus_notif_title">焦点认证绕过</string>
+    <string name="pref_island_focus_notif_summary">允许所有应用的焦点通知绕过 SystemUI 和 XMSF 认证。</string>
+
+    <string name="mock_target_package">目标包名</string>
+    <string name="mock_group_notification_shade">通知栏</string>
+    <string name="mock_group_dynamic_island">灵动岛</string>
+    <string name="mock_group_focus_templates">焦点模板</string>
+
+    <!-- Mock notification content strings -->
+    <string name="mock_channel_name">模拟通知测试</string>
+    <string name="mock_bigtext_summary">大文本摘要</string>
+    <string name="mock_bigpicture_summary">大图片摘要</string>
+    <string name="mock_inbox_line1">第1行: %1$s</string>
+    <string name="mock_inbox_line2">第2行: 另一条消息</string>
+    <string name="mock_inbox_line3">第3行: 第三条消息</string>
+    <string name="mock_inbox_summary">+3 条消息</string>
+    <string name="mock_messaging_user">测试用户</string>
+    <string name="mock_messaging_conversation">测试对话</string>
+    <string name="mock_messaging_reply">回复消息</string>
+    <string name="mock_media_now_playing">正在播放 - %1$s</string>
+    <string name="mock_media_prev">上一首</string>
+    <string name="mock_media_pause">暂停</string>
+    <string name="mock_media_next">下一首</string>
+    <string name="mock_progress_downloading">下载中…</string>
+    <string name="mock_voip_title">来电</string>
+    <string name="mock_voip_accept">接听</string>
+    <string name="mock_voip_decline">拒绝</string>
+
+    <string name="mock_live_update_delivery_title">外卖配送中</string>
+    <string name="mock_live_update_delivery_desc">骑手已取餐，预计15分钟送达</string>
+    <string name="mock_live_update_ride_title">司机正在前往上车点</string>
+    <string name="mock_live_update_ride_desc">距您约500米，预计3分钟到达</string>
+
+
+
+    <string name="settings_enable_analytics">统计数据</string>
+    <string name="settings_enable_analytics_summary">允许开发者匿名分析通道使用情况、成功率、崩溃等技术细节</string>
+    <string name="runtime_missing_dialog_title">未检测到可用的xmsf</string>
+    <string name="runtime_missing_dialog_message">xmsf运行时可能未安装或版本不兼容，请安装匹配的xmsf运行时，然后重新打开管理器。</string>
+    <string name="dialog_acknowledge">我知道了</string>
+    <string name="legacy_module_dialog_title">检测到不兼容的 MiPush 模块</string>
+    <string name="legacy_module_dialog_message">检测到不兼容的模块：%1$s，请卸载后重新打开管理器。</string>
+    <string name="runtime_commit_mismatch_dialog_title">管理器与运行时版本不匹配</string>
+    <string name="runtime_commit_mismatch_dialog_message">检测到MiPush管理器模块与 xmsf 运行时的构建提交不一致（管理器： %1$s，运行时： %2$s）。版本错配可能导致包括但不限于通知重复、点击无响应等问题，请尽可能安装配套版本的两个 APK。</string>
+    <string name="runtime_commit_mismatch_toast">模块与 xmsf 版本不匹配，通知功能可能异常</string>
+
+    <string name="pref_theme_group_color">色彩</string>
+    <string name="pref_theme_group_navigation">导航栏</string>
+    <string name="pref_auto_update_on_start_title">启动时自动检查更新</string>
+    <string name="pref_auto_update_on_start_summary">冷启动时在后台检查更新</string>
+    <string name="pref_auto_update_wifi_only_title">仅 Wi-Fi 自动检查更新</string>
+    <string name="pref_auto_update_wifi_only_summary">仅在 Wi-Fi 下执行启动更新检查</string>
+    <string name="open_browser_failed">没有可用的浏览器打开链接</string>
+    <string name="check_update_title">检查更新</string>
+    <string name="check_update_summary">点击检查更新</string>
+    <string name="settings_check_report_checking">正在检查更新…</string>
+    <string name="settings_check_report_manager_up_to_date">管理器：已是最新</string>
+    <string name="settings_check_report_manager_available">管理器：有新版本 %1$s</string>
+    <string name="settings_check_report_manager_failed">管理器：检查失败</string>
+    <string name="settings_check_report_runtime_up_to_date">运行时：已是最新</string>
+    <string name="settings_check_report_runtime_available">运行时：有新版本 %1$s</string>
+    <string name="settings_check_report_runtime_unsupported">运行时：当前构建不支持检查</string>
+    <string name="settings_check_report_runtime_failed">运行时：检查失败</string>
+    <string name="version_hint_checking">正在检查更新…</string>
+    <string name="version_hint_up_to_date">已是最新版本</string>
+    <string name="version_hint_available">发现新版本：%1$s</string>
+    <string name="version_hint_updating">正在更新运行时… %1$d%%</string>
+    <string name="version_hint_failed">检查更新失败：%1$s</string>
+    <string name="version_hint_unsupported">Play 版本请前往发布页手动检查</string>
+    <string name="xmsf_delivery_title">XMSF 运行时</string>
+    <string name="xmsf_delivery_state_not_installed">未安装</string>
+    <string name="xmsf_delivery_state_update_available">有新版本可用</string>
+    <string name="xmsf_delivery_state_signature_mismatch">签名不匹配，运行时不可信</string>
+    <string name="xmsf_delivery_state_ready">已就绪</string>
+    <string name="xmsf_delivery_connectivity_connected">Binder 已连接</string>
+    <string name="xmsf_delivery_connectivity_unavailable">Binder 不可用</string>
+    <string name="xmsf_delivery_install_action">下载并安装运行时</string>
+    <string name="xmsf_delivery_install_summary">拉取锁定的运行时，校验签名后安装</string>
+    <string name="xmsf_delivery_install_busy">正在下载并安装… %1$d%%</string>
+    <string name="xmsf_delivery_guidance_action">打开发布页手动安装</string>
+    <string name="xmsf_delivery_guidance_summary">此渠道不在应用内下载 APK</string>
+    <string name="xmsf_delivery_installed_snackbar">XMSF 运行时已安装并验证通过</string>
+    <string name="xmsf_delivery_guidance_opened_snackbar">已打开发布页，安装后请刷新状态</string>
+    <string name="xmsf_delivery_failed_snackbar">运行时下发失败：%1$s</string>
+    <string name="wizard_section_required">必需</string>
+    <string name="wizard_section_optional">可选</string>
+    <string name="wizard_action_grant_all">全部静默授权</string>
+    <string name="wizard_action_enter_app">进入应用</string>
+    <string name="wizard_status_processing">处理中…</string>
+    <string name="wizard_log_granted">已授权：%1$s</string>
+    <string name="wizard_log_denied">未授权：%1$s</string>
+    <string name="wizard_descr_foreground_covered">前台检测已由其他方式覆盖。</string>
+</resources>

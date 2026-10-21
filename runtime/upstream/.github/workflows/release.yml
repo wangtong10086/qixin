@@ -1,0 +1,553 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  validate-release:
+    name: Validate Release Metadata
+    if: ${{ vars.RELEASE_OWNER == '' || vars.RELEASE_OWNER == 'github' }}
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Configure GitLab submodule credentials
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          if [[ -z "$GITLAB_TOKEN" ]]; then
+            echo "::error::GITLAB_TOKEN secret is not set; cannot clone gitlab.com submodules"
+            exit 1
+          fi
+          git config --global http.https://gitlab.com/.extraheader "AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          echo "GITLAB_TOKEN=$GITLAB_TOKEN" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: ./.github/actions/resolve-ci-toolkit
+      - name: Setup Android CI
+        uses: ./.magisk-ci-toolkit/.github/actions/setup-android-ci
+        with:
+          checkout: 'false'
+
+      - name: Validate release notes and tag/version consistency
+        run: |
+          chmod +x scripts/check_release_guard.sh
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            scripts/check_release_guard.sh "${GITHUB_REF_NAME}"
+          else
+            scripts/check_release_guard.sh
+          fi
+
+  build-xmsf-apk:
+    name: Build XMSF Release APK
+    needs: [validate-release]
+    runs-on: ubuntu-26.04
+    env:
+      HAS_RELEASE_SIGNING: ${{ secrets.RELEASE_KEYSTORE != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+    steps:
+      - name: Configure GitLab submodule credentials
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          if [[ -z "$GITLAB_TOKEN" ]]; then
+            echo "::error::GITLAB_TOKEN secret is not set; cannot clone gitlab.com submodules"
+            exit 1
+          fi
+          git config --global http.https://gitlab.com/.extraheader "AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          echo "GITLAB_TOKEN=$GITLAB_TOKEN" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: ./.github/actions/resolve-ci-toolkit
+      - name: Setup Android CI
+        uses: ./.magisk-ci-toolkit/.github/actions/setup-android-ci
+        with:
+          checkout: 'false'
+
+
+      - name: Decode Keystore
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > release.jks
+      - name: Resolve Play release version
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        shell: bash
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.ANDROID_PUBLISHER_CREDENTIALS }}
+        run: |
+          bash .magisk-ci-toolkit/release/resolve_play_release.sh \
+            --package-name io.github.magisk317.mipush \
+            --version-file gradle/libs.versions.toml \
+            --output play-release.env \
+            --initial-version-code 1569
+          cat play-release.env >> "$GITHUB_ENV"
+
+      - name: Skip unsupported release signing
+        if: env.HAS_RELEASE_SIGNING != 'true'
+        run: echo "SKIP release build; complete signing credentials are not configured."
+
+      - name: Build XMSF release APK
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        uses: ./.magisk-ci-toolkit/.github/actions/run-gradle-with-retry
+        with:
+          arguments: :xmsf:assembleRelease -PbuildSplits=true -Pkotlin.incremental=false
+        env:
+          KEYSTORE_FILE: release.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Package release debug files
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        run: |
+          mkdir -p release-debug-files
+          copy_optional() {
+            local source_file="$1"
+            local target_file="$2"
+            if [[ -f "$source_file" ]]; then
+              cp "$source_file" "release-debug-files/$target_file"
+            else
+              echo "SKIP optional release asset: $source_file"
+            fi
+          }
+          copy_optional xmsf/build/outputs/mapping/normalRelease/mapping.txt mapping-normal-release.txt
+          copy_optional xmsf/build/outputs/mapping/vc105Release/mapping.txt mapping-vc105-release.txt
+          copy_optional xmsf/build/outputs/native-debug-symbols/normalRelease/native-debug-symbols.zip native-symbols-normal-release.zip
+          copy_optional xmsf/build/outputs/native-debug-symbols/vc105Release/native-debug-symbols.zip native-symbols-vc105-release.zip
+
+      - name: Upload XMSF release artifact
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: apks-xmsf
+          path: |
+            xmsf/build/outputs/apk/normal/release/**/*.apk
+            xmsf/build/outputs/apk/vc105/release/**/*.apk
+            release-debug-files/
+
+  build-mipush-apk:
+    name: Build MiPush Release APK
+    needs: [validate-release]
+    runs-on: ubuntu-26.04
+    env:
+      HAS_RELEASE_SIGNING: ${{ secrets.RELEASE_KEYSTORE != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+    steps:
+      - name: Configure GitLab submodule credentials
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          if [[ -z "$GITLAB_TOKEN" ]]; then
+            echo "::error::GITLAB_TOKEN secret is not set; cannot clone gitlab.com submodules"
+            exit 1
+          fi
+          git config --global http.https://gitlab.com/.extraheader "AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          echo "GITLAB_TOKEN=$GITLAB_TOKEN" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: ./.github/actions/resolve-ci-toolkit
+      - name: Setup Android CI
+        uses: ./.magisk-ci-toolkit/.github/actions/setup-android-ci
+        with:
+          checkout: 'false'
+
+
+      - name: Decode Keystore
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > release.jks
+
+      - name: Skip unsupported release signing
+        if: env.HAS_RELEASE_SIGNING != 'true'
+        run: echo "SKIP release build; complete signing credentials are not configured."
+
+      - name: Build MiPush release APK
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        uses: ./.magisk-ci-toolkit/.github/actions/run-gradle-with-retry
+        with:
+          arguments: :mipush:assembleGithubRelease -PbuildSplits=true -Pkotlin.incremental=false
+        env:
+          KEYSTORE_FILE: release.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Package MiPush release debug files
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        run: |
+          mkdir -p release-debug-files
+          copy_optional() {
+            local source_file="$1"
+            local target_file="$2"
+            if [[ -f "$source_file" ]]; then
+              cp "$source_file" "release-debug-files/$target_file"
+            else
+              echo "SKIP optional release asset: $source_file"
+            fi
+          }
+          copy_optional mipush/build/outputs/mapping/githubRelease/mapping.txt mapping-mipush-release.txt
+
+      - name: Upload MiPush release artifact
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: apks-mipush
+          path: |
+            mipush/build/outputs/apk/github/release/**/*.apk
+            release-debug-files/
+
+  build-mipush-aab:
+    name: Build MiPush Play Bundle
+    needs: [validate-release]
+    runs-on: ubuntu-26.04
+    env:
+      HAS_RELEASE_SIGNING: ${{ secrets.RELEASE_KEYSTORE != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+    steps:
+      - name: Configure GitLab submodule credentials
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          if [[ -z "$GITLAB_TOKEN" ]]; then
+            echo "::error::GITLAB_TOKEN secret is not set; cannot clone gitlab.com submodules"
+            exit 1
+          fi
+          git config --global http.https://gitlab.com/.extraheader "AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          echo "GITLAB_TOKEN=$GITLAB_TOKEN" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: ./.github/actions/resolve-ci-toolkit
+      - name: Setup Android CI
+        uses: ./.magisk-ci-toolkit/.github/actions/setup-android-ci
+        with:
+          checkout: 'false'
+      - name: Decode Keystore
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        run: echo "${{ secrets.RELEASE_KEYSTORE }}" | base64 --decode > release.jks
+      - name: Skip unsupported release signing
+        if: env.HAS_RELEASE_SIGNING != 'true'
+        run: echo "SKIP Play bundle; complete signing credentials are not configured."
+      - name: Build MiPush Play bundle
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        uses: ./.magisk-ci-toolkit/.github/actions/run-gradle-with-retry
+        with:
+          arguments: :mipush:bundlePlayRelease -Pkotlin.incremental=false -PversionName=${{ env.MAGISK_PLAY_VERSION_NAME }} -PversionCode=${{ env.MAGISK_PLAY_VERSION_CODE }}
+        env:
+          KEYSTORE_FILE: release.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      - name: Upload MiPush Play bundle
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: apks-mipush-play
+          path: |
+            mipush/build/outputs/bundle/playRelease/*.aab
+            mipush/build/outputs/mapping/**/mapping.txt
+            mipush/build/outputs/native-debug-symbols/**/native-debug-symbols.zip
+            play-release.env
+
+  build-zygisk-module:
+    name: Build Zygisk Module
+    needs: [validate-release]
+    runs-on: ubuntu-26.04
+    env:
+      MIPUSH_ZYGISK_REF: 61a6e5a6e078c3e7c4540b8af3d03c2bed510495
+    steps:
+      - name: Configure GitLab submodule credentials
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          if [[ -z "$GITLAB_TOKEN" ]]; then
+            echo "::error::GITLAB_TOKEN secret is not set; cannot clone gitlab.com submodules"
+            exit 1
+          fi
+          git config --global http.https://gitlab.com/.extraheader "AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          echo "GITLAB_TOKEN=$GITLAB_TOKEN" >> "$GITHUB_ENV"
+      - name: Checkout MiPushFramework
+        uses: actions/checkout@v7
+        with:
+          path: MiPushFramework
+          fetch-depth: 0
+
+      - name: Check Zygisk source support
+        id: zygisk-source
+        shell: bash
+        run: |
+          probe_dir="$(mktemp -d)"
+          trap 'rm -rf "$probe_dir"' EXIT
+          git -C "$probe_dir" init -q
+          git -C "$probe_dir" remote add origin https://gitlab.com/magisk3171/MiPushZygisk.git
+          if git -C "$probe_dir" fetch --quiet --depth 1 origin "$MIPUSH_ZYGISK_REF" &&
+            [[ "$(git -C "$probe_dir" rev-parse FETCH_HEAD)" == "$MIPUSH_ZYGISK_REF" ]]; then
+            echo "supported=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "supported=false" >> "$GITHUB_OUTPUT"
+            echo "SKIP Zygisk build; source repository is unavailable on this runner."
+          fi
+
+      - name: Checkout MiPushZygisk
+        if: steps.zygisk-source.outputs.supported == 'true'
+        run: |
+          git init MiPushZygisk
+          git -C MiPushZygisk remote add origin https://gitlab.com/magisk3171/MiPushZygisk.git
+          git -C MiPushZygisk fetch --depth 1 origin "$MIPUSH_ZYGISK_REF"
+          git -C MiPushZygisk checkout --detach FETCH_HEAD
+
+      - name: Install Rust toolchain
+        if: steps.zygisk-source.outputs.supported == 'true'
+        uses: dtolnay/rust-toolchain@1.98.0
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
+
+      - name: Install Android NDK
+        if: steps.zygisk-source.outputs.supported == 'true'
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r30-beta3
+
+      - name: Build Zygisk module
+        if: steps.zygisk-source.outputs.supported == 'true'
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: |
+          source MiPushFramework/scripts/resolve_zygisk_version_env.sh
+          cd MiPushZygisk
+          ./build.sh
+
+      - name: Upload Zygisk release artifact
+        if: steps.zygisk-source.outputs.supported == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: apks-zygisk
+          path: MiPushZygisk/build/*.zip
+
+  create-release:
+    name: Create Release
+    needs: [build-xmsf-apk, build-mipush-apk, build-mipush-aab, build-zygisk-module]
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: write
+    env:
+      HAS_RELEASE_SIGNING: ${{ secrets.RELEASE_KEYSTORE != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+    steps:
+      - name: Configure GitLab submodule credentials
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          if [[ -z "$GITLAB_TOKEN" ]]; then
+            echo "::error::GITLAB_TOKEN secret is not set; cannot clone gitlab.com submodules"
+            exit 1
+          fi
+          git config --global http.https://gitlab.com/.extraheader "AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          echo "GITLAB_TOKEN=$GITLAB_TOKEN" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v8
+        if: startsWith(github.ref, 'refs/tags/') && env.HAS_RELEASE_SIGNING == 'true'
+        with:
+          pattern: apks-*
+          path: artifacts/apks
+          merge-multiple: true
+
+      - name: Skip unsupported release publication
+        if: startsWith(github.ref, 'refs/tags/') && env.HAS_RELEASE_SIGNING != 'true'
+        run: echo "SKIP GitHub Release; complete signing credentials are not configured."
+
+      - name: Publish Release
+        if: startsWith(github.ref, 'refs/tags/') && env.HAS_RELEASE_SIGNING == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag_name="${GITHUB_REF_NAME}"
+          release_name="$tag_name"
+          MAGISK_RELEASE_NOTES_FILE=release-notes.md \
+          MAGISK_RELEASE_PLATFORM=github \
+            scripts/publish_mipush_release.sh release-notes
+
+          mapfile -d '' release_assets < <(
+            find artifacts/apks -type f \( -name '*.apk' -o -name '*.aab' -o -name '*.zip' -o -name '*.txt' \) -print0 | sort -z
+          )
+          if [[ ${#release_assets[@]} == 0 ]]; then
+            echo "ERROR: no release assets found under artifacts/apks" >&2
+            find artifacts/apks -maxdepth 6 -type f | sort >&2 || true
+            exit 1
+          fi
+
+          if gh release view "$tag_name" >/dev/null 2>&1; then
+            gh release upload "$tag_name" "${release_assets[@]}" --clobber
+            gh release edit "$tag_name" \
+              --title "$release_name" \
+              --draft=false \
+              --notes-file release-notes.md
+          else
+            gh release create "$tag_name" "${release_assets[@]}" \
+              --title "$release_name" \
+              --verify-tag \
+              --notes-file release-notes.md
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+
+  publish-to-modules-repo:
+    name: Publish to Xposed-Modules-Repo
+    needs: [create-release]
+    runs-on: ubuntu-26.04
+    continue-on-error: true
+    if: startsWith(github.ref, 'refs/tags/')
+    env:
+      HAS_MODULES_REPO_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN != '' }}
+      HAS_RELEASE_SIGNING: ${{ secrets.RELEASE_KEYSTORE != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+      MODULES_REPO: Xposed-Modules-Repo/io.github.magisk317.mipush
+    steps:
+      - name: Configure GitLab submodule credentials
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          if [[ -z "$GITLAB_TOKEN" ]]; then
+            echo "::error::GITLAB_TOKEN secret is not set; cannot clone gitlab.com submodules"
+            exit 1
+          fi
+          git config --global http.https://gitlab.com/.extraheader "AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          echo "GITLAB_TOKEN=$GITLAB_TOKEN" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Download Artifacts
+        if: env.HAS_MODULES_REPO_TOKEN == 'true' && env.HAS_RELEASE_SIGNING == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: apks-*
+          path: artifacts/apks
+          merge-multiple: true
+
+      - name: Skip unsupported modules repository publication
+        if: env.HAS_MODULES_REPO_TOKEN != 'true' || env.HAS_RELEASE_SIGNING != 'true'
+        run: echo "SKIP Xposed-Modules-Repo; token or complete signing credentials are not configured."
+
+      - name: Publish Release in Xposed-Modules-Repo
+        if: env.HAS_MODULES_REPO_TOKEN == 'true' && env.HAS_RELEASE_SIGNING == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag_name="${GITHUB_REF_NAME}"
+          release_name="$tag_name"
+          MAGISK_RELEASE_NOTES_FILE=release-notes.md \
+          MAGISK_RELEASE_PLATFORM=github \
+            scripts/publish_mipush_release.sh release-notes
+
+          mapfile -d '' apk_files < <(find artifacts/apks -type f -name '*.apk' -print0 | sort -z)
+          if [[ ${#apk_files[@]} -eq 0 ]]; then
+            echo "ERROR: no APK files found under artifacts/apks" >&2
+            find artifacts/apks -maxdepth 6 -type f | sort >&2 || true
+            exit 1
+          fi
+
+          if gh release view "$tag_name" --repo "${{ env.MODULES_REPO }}" >/dev/null 2>&1; then
+            gh release upload "$tag_name" "${apk_files[@]}" \
+              --repo "${{ env.MODULES_REPO }}" \
+              --clobber
+            gh release edit "$tag_name" \
+              --repo "${{ env.MODULES_REPO }}" \
+              --title "$release_name" \
+              --draft=false \
+              --notes-file release-notes.md
+          else
+            gh release create "$tag_name" \
+              "${apk_files[@]}" \
+              --repo "${{ env.MODULES_REPO }}" \
+              --title "$release_name" \
+              --notes-file release-notes.md
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.XPOSED_MODULES_REPO_TOKEN }}
+
+  publish-play:
+    name: Publish MiPush Manager to Google Play
+    needs: [create-release, build-mipush-aab]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-26.04
+    env:
+      HAS_GOOGLE_PLAY_CREDENTIALS: ${{ secrets.ANDROID_PUBLISHER_CREDENTIALS != '' }}
+      HAS_RELEASE_SIGNING: ${{ secrets.RELEASE_KEYSTORE != '' && secrets.STORE_PASSWORD != '' && secrets.KEY_ALIAS != '' && secrets.KEY_PASSWORD != '' }}
+    steps:
+      - name: Configure GitLab submodule credentials
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+        run: |
+          if [[ -z "$GITLAB_TOKEN" ]]; then
+            echo "::error::GITLAB_TOKEN secret is not set; cannot clone gitlab.com submodules"
+            exit 1
+          fi
+          git config --global http.https://gitlab.com/.extraheader "AUTHORIZATION: basic $(printf 'oauth2:%s' "$GITLAB_TOKEN" | base64 -w0)"
+          echo "GITLAB_TOKEN=$GITLAB_TOKEN" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+      - uses: ./.github/actions/resolve-ci-toolkit
+      - uses: actions/download-artifact@v8
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        with:
+          name: apks-mipush-play
+          path: artifacts/bundle
+      - name: Load Play release version
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        run: cat artifacts/bundle/play-release.env >> "$GITHUB_ENV"
+      - name: Resolve Play bundle
+        if: env.HAS_RELEASE_SIGNING == 'true'
+        id: resolve_play
+        shell: bash
+        run: |
+          set -euo pipefail
+          aab_file="$(find artifacts/bundle -type f -name '*.aab' | sort | head -n 1)"
+          if [[ -z "$aab_file" ]]; then
+            echo "ERROR: no MiPush manager AAB found" >&2
+            exit 1
+          fi
+          echo "aab_file=$aab_file" >> "$GITHUB_OUTPUT"
+          mapping_file="$(find artifacts/bundle -type f -name mapping.txt | sort | head -n 1 || true)"
+          if [[ -n "$mapping_file" ]]; then
+            echo "has_mapping=true" >> "$GITHUB_OUTPUT"
+            echo "mapping_file=$mapping_file" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_mapping=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish to Google Play
+        if: env.HAS_RELEASE_SIGNING == 'true' && env.HAS_GOOGLE_PLAY_CREDENTIALS == 'true'
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ secrets.ANDROID_PUBLISHER_CREDENTIALS }}
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_DISABLE_COLORS: '1'
+          CI: 'true'
+        run: |
+          set -euo pipefail
+          MAGISK_ANDROID_RELEASE_PACKAGE_NAME="io.github.magisk317.mipush"
+          MAGISK_PLAY_AAB_FILE="$(find artifacts/bundle -type f -name '*.aab' | sort | head -n 1)"
+          MAGISK_PLAY_MAPPING_FILE="$(find artifacts/bundle -type f -name mapping.txt | sort | head -n 1 || true)"
+          MAGISK_PLAY_SYMBOLS_FILE="$(find artifacts/bundle -type f -name native-debug-symbols.zip | sort | head -n 1 || true)"
+          export MAGISK_ANDROID_RELEASE_PACKAGE_NAME MAGISK_PLAY_AAB_FILE MAGISK_PLAY_MAPPING_FILE MAGISK_PLAY_SYMBOLS_FILE
+          export MAGISK_RELEASE_ENV_FILE=play-release-status.env
+          bash .magisk-ci-toolkit/release/publish_play.sh
+      - name: Skip Google Play publication
+        if: env.HAS_RELEASE_SIGNING != 'true' || env.HAS_GOOGLE_PLAY_CREDENTIALS != 'true'
+        run: echo "SKIP Google Play publication; signing or publisher credentials are not configured."

@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/><!-- Device-wide push management needs labels and icons for every installed app. -->
+<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission"/>
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+<application android:label="栖信" android:icon="@drawable/ic_qixin" android:allowBackup="false" android:dataExtractionRules="@xml/data_extraction_rules" android:extractNativeLibs="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+<activity android:name=".ui.MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+<service android:name=".island.IslandListener" android:label="栖信通知岛" android:exported="true" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"><intent-filter><action android:name="android.service.notification.NotificationListenerService"/></intent-filter></service>
+</application></manifest>

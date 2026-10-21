@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pref_enable_analytics_title">统计数据</string>
+    <string name="pref_enable_analytics_summary">允许开发者匿名分析通道使用情况、成功率、崩溃等技术细节</string>
+    <string name="mobile_entitlement_title">设备激活状态</string>
+    <string name="mobile_entitlement_status">激活状态：%1$s</string>
+    <string name="mobile_entitlement_automation">功能状态：%1$s</string>
+    <string name="mobile_entitlement_allowed">可用</string>
+    <string name="mobile_entitlement_paused">已暂停</string>
+    <string name="mobile_entitlement_issued_at">激活时间：%1$s</string>
+    <string name="mobile_entitlement_device_id">激活 ID：%1$s</string>
+    <string name="mobile_entitlement_copy">复制</string>
+    <string name="mobile_entitlement_copied">复制成功</string>
+    <string name="mobile_entitlement_activation_token_label">一次性激活令牌</string>
+    <string name="mobile_entitlement_activation_token_hint">请输入机器人返回的 32 位一次性激活令牌</string>
+    <string name="mobile_entitlement_activation_token_confirm">使用令牌激活</string>
+    <string name="mobile_entitlement_activation_token_invalid">请输入有效的 32 位一次性激活令牌</string>
+    <string name="mobile_entitlement_activation_token_get_hint">点击“获取激活码”，把激活码发送给 QQ 频道或 Telegram 里的机器人，再把返回的一次性令牌粘贴到这里。</string>
+    <string name="mobile_entitlement_activate_telegram">Telegram 激活</string>
+    <string name="mobile_entitlement_get_activation_code">获取激活码</string>
+    <string name="mobile_entitlement_qq_title">激活码</string>
+    <string name="mobile_entitlement_qq_code_label">激活码</string>
+    <string name="mobile_entitlement_qq_join_channel">加入 QQ 频道</string>
+    <string name="mobile_entitlement_qq_instructions">复制激活码，加入 QQ 频道后在频道内找到机器人，发送激活码或激活链接；机器人会自动返回一次性令牌，粘贴到上方输入框即可完成激活。</string>
+    <string name="mobile_entitlement_qq_dismiss">关闭</string>
+    <string name="mobile_entitlement_qq_entry_missing">服务端未返回 QQ 入口信息，请重试。</string>
+    <string name="mobile_entitlement_refresh">刷新状态</string>
+    <string name="mobile_entitlement_error">错误：%1$s</string>
+    <string name="mobile_entitlement_jump_failed_copied">无法打开应用，已复制链接到剪贴板</string>
+</resources>

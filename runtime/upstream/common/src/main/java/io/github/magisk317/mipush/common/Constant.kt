@@ -1,0 +1,60 @@
+package io.github.magisk317.mipush.common
+
+const val APPLICATION_ID = BuildConfig.APPLICATION_ID
+const val VERSION_NAME = BuildConfig.VERSION_NAME
+const val VERSION_CODE = BuildConfig.VERSION_CODE
+
+const val ANDROID_PACKAGE_NAME = "android"
+
+const val XMSF_PACKAGE_NAME = "com.xiaomi.xmsf"
+const val XMSF_PROCESS_NAME = "com.xiaomi.xmsf"
+
+const val IS_SYSTEM_HOOK_READY = "is_system_hook_ready"
+const val XMSF_FAKE_CONDITION_PROVIDER_PATH = "xmsf_fake_condition_provider_path"
+
+const val KEEPALIVE_PREF_AUTHORITY = "com.xiaomi.xmsf.keepalive.prefs"
+const val KEEPALIVE_PREF_READ_PERMISSION = "com.xiaomi.xmsf.permission.READ_KEEPALIVE_PREFS"
+const val KEEPALIVE_PREF_PATH_FLAGS = "flags"
+const val KEEPALIVE_PREF_COLUMN_KEY = "key"
+const val KEEPALIVE_PREF_COLUMN_ENABLED = "enabled"
+const val KEEPALIVE_PREF_OOM_ADJ = "pref_keepalive_oom_adj"
+const val KEEPALIVE_PREF_ANTI_KILL = "pref_keepalive_anti_kill"
+const val KEEPALIVE_PREF_STANDBY_BYPASS = "pref_keepalive_standby_bypass"
+const val KEEPALIVE_PREF_DOZE_BYPASS = "pref_keepalive_doze_bypass"
+
+// Frozen-app push: unfreeze on notification click, then refreeze by policy.
+const val FREEZE_PREF_ENABLED = "pref_freeze_enabled"
+const val FREEZE_PREF_REFREEZE_POLICY = "pref_freeze_refreeze_policy"
+const val FREEZE_PREF_REFREEZE_DELAY_MINUTES = "pref_freeze_refreeze_delay_minutes"
+const val FREEZE_REFREEZE_POLICY_NEVER = 0
+const val FREEZE_REFREEZE_POLICY_SCREEN_OFF = 1
+const val FREEZE_REFREEZE_POLICY_TIMED = 2
+const val FREEZE_REFREEZE_POLICY_TASK_REMOVED = 3
+
+const val ACTION_FREEZE_LAUNCH_ACTIVATED = "io.github.magisk317.mipush.action.FREEZE_LAUNCH_ACTIVATED"
+const val EXTRA_FREEZE_PACKAGE = "freeze_package"
+const val EXTRA_FREEZE_USER_ID = "freeze_user_id"
+
+const val ICON_PACK_PREF_AUTHORITY = "com.xiaomi.xmsf.iconpack"
+const val ICON_PACK_PREF_READ_PERMISSION = "com.xiaomi.xmsf.permission.READ_ICON_PACK"
+const val ICON_PACK_PREF_PATH_ICON = "icon"
+const val ICON_PACK_PREF_COLUMN_PACKAGE = "package"
+const val ICON_PACK_PREF_COLUMN_USER = "user"
+const val ICON_PACK_PREF_COLUMN_BITMAP = "bitmap"
+
+const val ACTION_PREF_CHANGED = "io.github.magisk317.mipush.action.PREF_CHANGED"
+
+const val ENABLE_ANALYTICS_KEY = "pref_enable_analytics"
+
+const val AUTO_UPDATE_ON_START_KEY = "pref_auto_update_on_start"
+
+const val AUTO_UPDATE_WIFI_ONLY_KEY = "pref_auto_update_wifi_only"
+
+/** High-volume heartbeat spans that carry no diagnostic value. */
+val SUPPRESSED_OTEL_EVENT_NAMES: Set<String> = setOf("push.keepalive", "push.lifecycle")
+
+/** Success-path spans that drown the error signal. */
+val SUPPRESSED_OTEL_RESULT_VALUES: Set<String> = setOf("ok")
+
+@Suppress("MaxLineLength")
+const val LEGACY_HUAWEI_CORE_SIGNATURE = "MIIEtTCCA52gAwIBAgIJAPIEVquWT6DwMA0GCSqGSIb3DQEBBQUAMIGYMQswCQYDVQQGEwJDTjESMBAGA1UECBMJR3Vhbmdkb25nMRIwEAYDVQQHEwlTaGVuZ3poZW4xDzANBgNVBAoTBkh1YXdlaTEYMBYGA1UECxMPVGVybWluYWxDb21wYW55MRQwEgYDVQQDEwtBbmRyb2lkVGVhbTEgMB4GCSqGSIb3DQEJARYRbW9iaWxlQGh1YXdlaS5jb20wHhcNMTEwNTI1MDYxMDQ5WhcNMzYwNTE4MDYxMDQ5WjCBmDELMAkGA1UEBhMCQ04xEjAQBgNVBAgTCUd1YW5nZG9uZzESMBAGA1UEBxMJU2hlbmd6aGVuMQ8wDQYDVQQKEwZIdWF3ZWkxGDAWBgNVBAsTD1Rlcm1pbmFsQ29tcGFueTEUMBIGA1UEAxMLQW5kcm9pZFRlYW0xIDAeBgkqhkiG9w0BCQEWEW1vYmlsZUBodWF3ZWkuY29tMIIBIDANBgkqhkiG9w0BAQEFAAOCAQ0AMIIBCAKCAQEA4CxauXorOopZliI83ga4Ky1P9bFcr2W4YNXHo9aJlasIYgu3WiL+dnOooaugPhe2UdH8TVy9uunnPu6vWh1NL7c+cAAjHg2yFm0Pxd2X5wX9ZlRsnaOO1O+izM3SOK0y45ghJCsBld8B2blyQtvyCe2o5EbgQyRLhOa/ynnXuzwZJM3SSO29YA7/j3MAGomkxmPbiXDjKIuUMVJMNh6FO4+ingTmHr5vvb2Hzb0+60ewJ7WFG96qE6I/Q5Z6Aw50fqQyZSy7NP3eYQSb9QYMgT+w6T9rrZ029NRVEZXqO7SekgGqbfl1rhaeIUkF3iV518w8PqxFlLFKwZ1+OcXCZwIBA6OCAQAwgf0wHQYDVR0OBBYEFD7GkN6BG8OeUaMDAa0jzzAG1n3gMIHNBgNVHSMEgcUwgcKAFD7GkN6BG8OeUaMDAa0jzzAG1n3goYGepIGbMIGYMQswCQYDVQQGEwJDTjESMBAGA1UECBMJR3Vhbmdkb25nMRIwEAYDVQQHEwlTaGVuZ3poZW4xDzANBgNVBAoTBkh1YXdlaTEYMBYGA1UECxMPVGVybWluYWxDb21wYW55MRQwEgYDVQQDEwtBbmRyb2lkVGVhbTEgMB4GCSqGSIb3DQEJARYRbW9iaWxlQGh1YXdlaS5jb22CCQDyBFarlk+g8DAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBBQUAA4IBAQBtrS/FkM8AeaxM4IZaiEMR3BatgydaKwMCQFd23R0fcEopmTyKE0qN/dVMWRUaBhVWEtvTAGRurPyfZPrC41JwmwNZ91avlsH1ZJUwTnIoe+R5igQzNWy8zdjVfN4ff/HABMuWKtWVsdoi7yBN4USQiGG7qWjgx0OB4RnHcrLPIsPQyDJanzHJeHsVbJR3GvZvT/sa2ZbD++dk87xQt6JkPCM3JhLyUJlGoDut+/6mH449KJIzhbvACHWs7Jm22SrEaPDcUMCZf/QJ46JdyNlmwg1YipcT/yF+LeSUV6Ms8j3xr1j0vN2UqPJrwckMWlGD22TUY1PdRhBHjHfyyJmI"

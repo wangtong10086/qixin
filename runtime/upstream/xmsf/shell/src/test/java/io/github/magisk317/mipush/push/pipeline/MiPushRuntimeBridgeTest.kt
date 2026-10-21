@@ -1,0 +1,247 @@
+package io.github.magisk317.mipush.push.pipeline
+
+import com.xiaomi.push.service.MIPushNotificationHelper
+import com.xiaomi.push.service.MIPushHelper
+import com.xiaomi.push.service.PushConstants
+import com.xiaomi.xmpush.thrift.ActionType
+import com.xiaomi.xmpush.thrift.PushMetaInfo
+import com.xiaomi.xmpush.thrift.XmPushActionContainer
+import com.xiaomi.xmpush.thrift.XmPushActionRegistrationResult
+import com.xiaomi.xmpush.thrift.XmPushActionUnRegistrationResult
+import io.github.magisk317.mipush.runtime.android.AndroidPushRuntime
+import io.github.magisk317.mipush.runtime.store.kmp.RegisteredAppRegisteredType
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+
+class MiPushRuntimeBridgeTest {
+
+    @Test
+    fun `only successful server registration results produce final state changes`() {
+        val success = MIPushHelper.constructResponseContainer(
+            "com.example.target",
+            "app-id",
+            registrationResult(errorCode = 0L),
+            ActionType.Registration,
+        )
+        val failure = MIPushHelper.constructResponseContainer(
+            "com.example.target",
+            "app-id",
+            registrationResult(errorCode = 1L),
+            ActionType.Registration,
+        )
+        val missingSecret = MIPushHelper.constructResponseContainer(
+            "com.example.target",
+            "app-id",
+            registrationResult(errorCode = 0L, secret = null),
+            ActionType.Registration,
+        )
+
+        assertEquals(
+            RegisteredAppRegisteredType.Registered,
+            MiPushRuntimeBridge.resolveServerRegistrationState(success),
+        )
+        assertEquals(null, MiPushRuntimeBridge.resolveServerRegistrationState(failure))
+        assertEquals(
+            RegisteredAppRegisteredType.Registered,
+            MiPushRuntimeBridge.resolveServerRegistrationState(missingSecret),
+        )
+        assertTrue(MiPushRuntimeBridge.resolveRegistrationResultOutcome(success)!!.success)
+        assertFalse(MiPushRuntimeBridge.resolveRegistrationResultOutcome(failure)!!.success)
+        assertTrue(MiPushRuntimeBridge.resolveRegistrationResultOutcome(missingSecret)!!.success)
+    }
+
+    @Test
+    fun `re-registration results without secret still confirm the registration id`() {
+        val regIdOnly = MIPushHelper.constructResponseContainer(
+            "com.example.target",
+            "app-id",
+            registrationResult(id = "", appId = "", secret = null, regId = "u_J9re-registration-id", errorCode = 0L),
+            ActionType.Registration,
+        )
+        val anonymous = MIPushHelper.constructResponseContainer(
+            "com.example.target",
+            "app-id",
+            registrationResult(id = "", regId = null, errorCode = 0L),
+            ActionType.Registration,
+        )
+
+        val transition = MiPushRuntimeBridge.resolveConfirmedRegistrationTransition(regIdOnly)
+        assertEquals(RegisteredAppRegisteredType.Registered, transition?.registeredType)
+        assertEquals(null, transition?.appId)
+        assertEquals(null, transition?.regSecret)
+        assertEquals(null, MiPushRuntimeBridge.resolveConfirmedRegistrationTransition(anonymous))
+    }
+
+    @Test
+    fun `only successful server unregistration results produce final state changes`() {
+        val success = MIPushHelper.constructResponseContainer(
+            "com.example.target",
+            "app-id",
+            XmPushActionUnRegistrationResult("request-id", "app-id", 0L),
+            ActionType.UnRegistration,
+        )
+        val failure = MIPushHelper.constructResponseContainer(
+            "com.example.target",
+            "app-id",
+            XmPushActionUnRegistrationResult("request-id", "app-id", 1L),
+            ActionType.UnRegistration,
+        )
+
+        assertEquals(
+            RegisteredAppRegisteredType.Unregistered,
+            MiPushRuntimeBridge.resolveServerRegistrationState(success),
+        )
+        assertEquals(null, MiPushRuntimeBridge.resolveServerRegistrationState(failure))
+    }
+
+    @Test
+    fun `forged requests cannot be interpreted as verified final state`() {
+        val forgedRegister = MIPushHelper.constructResponseContainer(
+            "com.example.victim",
+            "attacker-app-id",
+            registrationResult(id = "forged", appId = "attacker-app-id", errorCode = 0L),
+            ActionType.Registration,
+        ).apply { setIsRequest(true) }
+        val forgedUnregister = MIPushHelper.constructResponseContainer(
+            "com.example.victim",
+            "attacker-app-id",
+            XmPushActionUnRegistrationResult("forged", "attacker-app-id", 0L),
+            ActionType.UnRegistration,
+        ).apply { setIsRequest(true) }
+
+        assertEquals(null, MiPushRuntimeBridge.resolveServerRegistrationState(forgedRegister))
+        assertEquals(null, MiPushRuntimeBridge.resolveServerRegistrationState(forgedUnregister))
+    }
+
+    @Test
+    fun `mock replays cannot apply verified server registration state`() {
+        assertFalse(MiPushRuntimeBridge.shouldApplyServerRegistrationState(isMockReplay = true))
+        assertTrue(MiPushRuntimeBridge.shouldApplyServerRegistrationState(isMockReplay = false))
+    }
+
+    @Test
+    fun `shouldProcessPayloadIdentity blocks duplicate notification payload within extended window`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        assertTrue(
+            MiPushRuntimeBridge.shouldProcessPayloadIdentity(
+                packageName = "com.tencent.mobileqq",
+                actionName = "SendMessage",
+                messageId = "msg-1",
+                source = "ClientEventDispatcher.notifyPacketArrival(blob)",
+                isAck = false,
+                isMockReplay = false,
+                payloadSize = 128,
+                androidUserId = 0,
+            ),
+        )
+        assertFalse(
+            MiPushRuntimeBridge.shouldProcessPayloadIdentity(
+                packageName = "com.tencent.mobileqq",
+                actionName = "SendMessage",
+                messageId = "msg-1",
+                source = "notification",
+                isAck = false,
+                isMockReplay = false,
+                payloadSize = 128,
+                androidUserId = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun `dispatch allowance consumption distinguishes missing expired and exhausted states`() {
+        val pkg = "com.tencent.mobileqq"
+        val userId = 0
+        MiPushRuntimeBridge.clearPackageTransientState(pkg, userId)
+
+        // No grant was ever issued for this message: repeat deliveries suppressed by the inbound
+        // dedup window land here.
+        assertEquals(
+            MiPushRuntimeBridge.AllowanceDecision.Rejected("missing"),
+            MiPushRuntimeBridge.consumeNotificationDispatchAllowance(
+                packageName = pkg,
+                actionName = "SendMessage",
+                messageId = "msg-allow-missing",
+                userId = userId,
+                nowMs = 1_000L,
+            ),
+        )
+
+        // A mark grants exactly three publishes; the fourth attempt is exhausted, not missing.
+        MiPushRuntimeBridge.markNotificationDispatchAllowance(
+            packageName = pkg,
+            actionName = "SendMessage",
+            messageId = "msg-allow-exhaust",
+            userId = userId,
+            nowMs = 1_000L,
+        )
+        repeat(3) { attempt ->
+            assertEquals(
+                MiPushRuntimeBridge.AllowanceDecision.Granted,
+                MiPushRuntimeBridge.consumeNotificationDispatchAllowance(
+                    packageName = pkg,
+                    actionName = "SendMessage",
+                    messageId = "msg-allow-exhaust",
+                    userId = userId,
+                    nowMs = 1_000L + attempt,
+                ),
+            )
+        }
+        assertEquals(
+            MiPushRuntimeBridge.AllowanceDecision.Rejected("exhausted"),
+            MiPushRuntimeBridge.consumeNotificationDispatchAllowance(
+                packageName = pkg,
+                actionName = "SendMessage",
+                messageId = "msg-allow-exhaust",
+                userId = userId,
+                nowMs = 1_100L,
+            ),
+        )
+
+        // A grant that ages past the TTL before the publish attempt lands is expired.
+        MiPushRuntimeBridge.markNotificationDispatchAllowance(
+            packageName = pkg,
+            actionName = "SendMessage",
+            messageId = "msg-allow-expired",
+            userId = userId,
+            nowMs = 2_000L,
+        )
+        assertEquals(
+            MiPushRuntimeBridge.AllowanceDecision.Rejected("expired"),
+            MiPushRuntimeBridge.consumeNotificationDispatchAllowance(
+                packageName = pkg,
+                actionName = "SendMessage",
+                messageId = "msg-allow-expired",
+                userId = userId,
+                nowMs = 2_000L + 30_001L,
+            ),
+        )
+        MiPushRuntimeBridge.clearPackageTransientState(pkg, userId)
+    }
+
+    @Test
+    fun `stale package guard resolves miui target package`() {
+        val container = XmPushActionContainer().apply {
+            packageName = PushConstants.PUSH_SERVICE_PACKAGE_NAME
+            metaInfo = PushMetaInfo().apply {
+                extra = mutableMapOf(MIPushNotificationHelper.MIUI_PACKAGE_NAME to "com.example.removed")
+            }
+        }
+
+        assertEquals("com.example.removed", StalePackagePushGuard.resolveTargetPackage(container))
+    }
+
+    private fun registrationResult(
+        id: String = "request-id",
+        appId: String = "app-id",
+        errorCode: Long,
+        secret: String? = "reg-secret",
+        regId: String? = null,
+    ) = XmPushActionRegistrationResult(id, appId, errorCode).apply {
+        secret?.let(::setRegSecret)
+        regId?.let(::setRegId)
+    }
+}

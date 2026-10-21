@@ -1,0 +1,518 @@
+package io.github.magisk317.mipush.main.viewmodel
+
+import android.app.Application
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import io.github.magisk317.mipush.common.Constants
+import io.github.magisk317.mipush.manager.application.ManagerEvent
+import io.github.magisk317.mipush.manager.ManagerStatePolicies
+import io.github.magisk317.mipush.manager.application.ManagerEventResult
+import io.github.magisk317.mipush.manager.application.ManagerEventType
+import io.github.magisk317.mipush.manager.application.ManagerEventGateway
+import io.github.magisk317.mipush.manager.events.RemoteEventListSource
+import io.github.magisk317.mipush.manager.remote.RuntimeReadUnavailableException
+import io.github.magisk317.mipush.manager.remote.PageRemoteCallPolicy
+import io.github.magisk317.mipush.manager.client.ManagerRuntimeClient
+import io.github.magisk317.mipush.manager.preferences.RuntimePreferenceGateway
+import io.github.magisk317.mipush.common.utils.logW
+import io.github.magisk317.mipush.manager.events.EventListRequest
+import io.github.magisk317.mipush.manager.events.EventReadResult
+import io.github.magisk317.mipush.manager.application.MockReplayOutcome
+import io.github.magisk317.mipush.data.PreferenceRepository
+import io.github.magisk317.mipush.feature.main.subpage.EventInfoForDisplay
+import io.github.magisk317.mipush.feature.main.subpage.composeKey
+import java.util.Date
+import io.github.magisk317.mipush.manager.SettingsManager
+import io.github.magisk317.mipush.manager.events.EventListCacheStore
+import kotlinx.coroutines.CancellationException
+
+internal fun EventReadResult<List<ManagerEvent>>.requireAvailableEvents(operation: String): List<ManagerEvent> =
+    when (this) {
+        is EventReadResult.Available -> value
+        is EventReadResult.Unavailable -> throw RuntimeReadUnavailableException(
+            status = status.name,
+            operation = operation,
+        )
+    }
+
+class EventListViewModel constructor(
+    private val eventSource: RemoteEventListSource,
+    private val eventGateway: ManagerEventGateway,
+    private val settingsManager: SettingsManager,
+    private val preferenceRepository: PreferenceRepository,
+    private val context: Application,
+    private val runtimeClient: ManagerRuntimeClient,
+    private val runtimePreferenceGateway: RuntimePreferenceGateway,
+    private val cacheStore: EventListCacheStore,
+) : ViewModel() {
+    companion object {
+        internal const val MAX_EVENT_LIST_SNAPSHOT_EVENTS = 200
+
+        internal fun shouldUseEventCache(refreshSignal: Int): Boolean = refreshSignal == 0
+
+        private val LEGACY_REGISTRATION_ATTEMPT_CONTENTS = setOf(
+            "尝试注册推送",
+            "Try to register push",
+        )
+        private val LEGACY_REGISTRATION_RESULT_CONTENTS = setOf(
+            "收到注册结果",
+            "Receive register result",
+        )
+        private val LEGACY_NOTIFICATION_CONTENT_PREFIXES = setOf(
+            "收到通知",
+            "Receive notification",
+        )
+        private val LEGACY_COMMAND_CONTENT_PREFIXES = setOf(
+            "收到命令",
+            "Receive command",
+        )
+
+        /**
+         * Cached rows written by older manager builds did not persist type. Their default type
+         * becomes SEND_MESSAGE, so recover the non-message type from the stable display summary.
+         */
+        private fun legacyCachedNonMessageType(content: String): Int? {
+            val normalized = content.trim()
+            return when {
+                LEGACY_REGISTRATION_ATTEMPT_CONTENTS.contains(normalized) -> ManagerEventType.REGISTRATION
+                LEGACY_REGISTRATION_RESULT_CONTENTS.contains(normalized) -> ManagerEventType.REGISTRATION_RESULT
+                LEGACY_NOTIFICATION_CONTENT_PREFIXES.any { normalized == it || normalized.startsWith("$it:") } ->
+                    ManagerEventType.NOTIFICATION
+                LEGACY_COMMAND_CONTENT_PREFIXES.any { normalized == it || normalized.startsWith("$it:") } ->
+                    ManagerEventType.NOTIFICATION
+                else -> null
+            }
+        }
+
+        /**
+         * Applies the same default visibility contract as RuntimeEventQueryPolicy to a cached
+         * snapshot. The persisted cache remains unmodified so switching to "show all events"
+         * can still reveal the complete history.
+         */
+        private fun cachedEventType(item: EventInfoForDisplay): Int = when {
+            item.event.type != ManagerEventType.SEND_MESSAGE -> item.event.type
+            else -> legacyCachedNonMessageType(item.content) ?: item.event.type
+        }
+
+        internal fun filterCachedEventsForDefaultMode(
+            events: List<EventInfoForDisplay>,
+        ): List<EventInfoForDisplay> {
+            val firstSuccessfulRegistrationKeys = events
+                .filter { item ->
+                    cachedEventType(item) == ManagerEventType.REGISTRATION_RESULT &&
+                        item.event.result == ManagerEventResult.OK
+                }
+                .groupBy { it.packageName }
+                .values
+                .mapNotNull { packageEvents ->
+                    packageEvents
+                        .minWithOrNull(compareBy<EventInfoForDisplay>({ it.receiveDate.time }, { it.id }))
+                        ?.composeKey()
+                }
+                .toSet()
+
+            return events.filter { item ->
+                when (cachedEventType(item)) {
+                    ManagerEventType.SEND_MESSAGE ->
+                        item.event.result != ManagerEventResult.DENY_DISABLED &&
+                            item.configOptions.none { it.equals("disable", ignoreCase = true) }
+                    ManagerEventType.REGISTRATION_RESULT ->
+                        item.event.result == ManagerEventResult.OK &&
+                            item.composeKey() in firstSuccessfulRegistrationKeys
+                    else -> false
+                }
+            }
+        }
+
+        internal fun eventsForDisplay(
+            events: List<EventInfoForDisplay>,
+            showAllEvents: Boolean,
+        ): List<EventInfoForDisplay> = if (showAllEvents) {
+            events
+        } else {
+            filterCachedEventsForDefaultMode(events)
+        }
+
+        internal fun mergeEventItems(
+            existing: List<EventInfoForDisplay>,
+            incoming: List<EventInfoForDisplay>,
+        ): List<EventInfoForDisplay> = (incoming + existing)
+            .distinctBy { it.composeKey() }
+            .let { ManagerStatePolicies.newestFirst(it) { item -> item.receiveDate.time } }
+
+        internal fun buildEventListSnapshot(
+            events: List<EventInfoForDisplay>,
+            lastId: Long?,
+            hasMore: Boolean,
+        ): EventListSnapshot {
+            val snapshotEvents = events.take(MAX_EVENT_LIST_SNAPSHOT_EVENTS).toList()
+            return EventListSnapshot(
+                events = snapshotEvents,
+                // The next page must start after the last item that can be restored.
+                lastId = snapshotEvents.lastOrNull()?.id ?: lastId,
+                hasMore = hasMore || events.size > snapshotEvents.size,
+            )
+        }
+
+        /**
+         * UI restoration identity includes the external refresh signal even though the persisted
+         * cache key does not. A presentation-policy change must force the list to re-read and filter
+         * the raw cache instead of reusing the previous visible snapshot.
+         */
+        internal fun eventListRestoreKey(query: String, packageName: String, refreshSignal: Int): String =
+            "q=$query;p=$packageName;refresh=$refreshSignal"
+
+    }
+
+    private val _events = MutableStateFlow<List<EventInfoForDisplay>>(emptyList())
+    val events: StateFlow<List<EventInfoForDisplay>> = _events.asStateFlow()
+
+    /** Emits the cache key whenever background or manual refresh writes new data. */
+    val cacheUpdates = cacheStore.updates
+
+
+    /** Bumped when runtime becomes Available after a gap so Event pages reload. */
+    private val _runtimeReadySignal = MutableStateFlow(0)
+    val runtimeReadySignal: StateFlow<Int> = _runtimeReadySignal.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            collectAvailableRuntimeReloads(
+                availability = runtimeClient.availability,
+                shouldReloadWhenAvailable = { false },
+            ) {
+                // Runtime came back: keep the current/cache-backed list stable.
+                // The page will request the next page when the user scrolls.
+                _runtimeReadySignal.value = _runtimeReadySignal.value + 1
+            }
+        }
+    }
+
+    override fun onCleared() {
+        // Clear memory-heavy snapshots when ViewModel is destroyed
+        invalidateEventListSnapshot()
+    }
+
+    /**
+     * In-memory list snapshot for tab reuse.
+     * Valid for the exact (query, packageName, refreshSignal) triple that loaded it.
+     * Search / package filter / external refreshSignal always miss and reload.
+     */
+    data class EventListSnapshot(
+        val events: List<EventInfoForDisplay>,
+        val lastId: Long?,
+        val hasMore: Boolean,
+    )
+
+    @Volatile private var listSnapshot: EventListSnapshot? = null
+    @Volatile private var snapshotQuery: String = ""
+    @Volatile private var snapshotPackageName: String = ""
+    @Volatile private var snapshotRefreshSignal: Int = -1
+    @Volatile private var snapshotValid: Boolean = false
+
+    fun getEventListSnapshot(query: String, packageName: String, refreshSignal: Int): EventListSnapshot? {
+        if (!snapshotValid) return null
+        if (snapshotQuery != query || snapshotPackageName != packageName || snapshotRefreshSignal != refreshSignal) {
+            return null
+        }
+        return listSnapshot
+    }
+
+    fun putEventListSnapshot(
+        query: String,
+        packageName: String,
+        refreshSignal: Int,
+        events: List<EventInfoForDisplay>,
+        lastId: Long?,
+        hasMore: Boolean,
+    ): EventListSnapshot {
+        snapshotQuery = query
+        snapshotPackageName = packageName
+        snapshotRefreshSignal = refreshSignal
+        // Full list is persisted to disk cache; this is just for instant UI restore.
+        listSnapshot = buildEventListSnapshot(events, lastId, hasMore)
+        snapshotValid = true
+        return listSnapshot ?: error("event list snapshot was not stored")
+    }
+
+    fun invalidateEventListSnapshot() {
+        snapshotValid = false
+        listSnapshot = null
+    }
+
+    /**
+     * Cache-first load used when a page opens. Serves from the persistent
+     * store synchronously-ish (suspend) so the UI can paint immediately; does
+     * NOT hit the remote runtime. Returns true when a cached page was restored.
+     */
+    suspend fun loadFromCacheIfPresent(query: String, packageName: String, refreshSignal: Int): Boolean {
+        if (!shouldUseEventCache(refreshSignal)) return false
+        if (snapshotValid &&
+            snapshotQuery == query && snapshotPackageName == packageName && snapshotRefreshSignal == refreshSignal
+        ) {
+            return true
+        }
+        val cached = cacheStore.getCached(cacheKey(query, packageName, refreshSignal)) ?: return false
+        // Reconstruct a snapshot; lastId/hasMore unknown from cache -> full page, no more.
+        val visible = eventsForDisplay(cached)
+        putEventListSnapshot(query, packageName, refreshSignal, visible, visible.lastOrNull()?.id, false)
+        _events.value = visible
+        return true
+    }
+
+    suspend fun reloadFromCache(query: String, packageName: String, refreshSignal: Int): EventListSnapshot? {
+        val cached = cacheStore.getCached(cacheKey(query, packageName, refreshSignal)) ?: return null
+        val visible = eventsForDisplay(cached)
+        val snapshot = putEventListSnapshot(
+            query,
+            packageName,
+            refreshSignal,
+            visible,
+            visible.lastOrNull()?.id,
+            false,
+        )
+        _events.value = visible
+        return snapshot
+    }
+
+    private suspend fun eventsForDisplay(events: List<EventInfoForDisplay>): List<EventInfoForDisplay> =
+        eventsForDisplay(
+            events = events,
+            showAllEvents = preferenceRepository.showAllEvents.first(),
+        )
+
+    /**
+     * Background refresh of the first page; writes the persistent cache and the
+     * in-memory snapshot but does NOT disturb the currently shown list unless it
+     * is empty (so the user never sees a flicker on silent refresh).
+     */
+    fun triggerSilentRefresh(query: String, packageName: String, refreshSignal: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            refreshEventsSilently(query, packageName, refreshSignal)
+        }
+    }
+
+    private suspend fun refreshEventsSilently(query: String, packageName: String, refreshSignal: Int) {
+        try {
+            val freshRaw = loadEventsRemote(
+                EventListRequest(lastId = null, pageSize = Constants.PAGE_SIZE, packageName = packageName, query = query),
+                budget = PageRemoteCallPolicy.backgroundRefresh,
+            ).map { toEventInfoForDisplay(it) }
+            val fresh = eventsForDisplay(freshRaw)
+            // A refresh returns only the newest page. Merge the raw page with older cached pages
+            // so a later cache-first open does not lose history; only the in-memory handoff is
+            // filtered for the current display mode.
+            val cached = cacheStore.getCached(cacheKey(query, packageName, refreshSignal)).orEmpty()
+            cacheStore.putCached(
+                cacheKey(query, packageName, refreshSignal),
+                mergeEventItems(cached, freshRaw).take(MAX_EVENT_LIST_SNAPSHOT_EVENTS),
+            )
+            // Silent refresh warms the disk cache only; it must NOT write the
+            // in-memory snapshot, otherwise the page's cache-first seed would
+            // see a snapshot and skip reading the persistent store.
+            if (_events.value.isEmpty()) {
+                _events.value = fresh
+            }
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: RuntimeReadUnavailableException) {
+            logW("silent refresh unavailable: ${error.operation}")
+        } catch (error: Exception) {
+            logW("silent refresh failed: ${error.message}")
+        }
+    }
+
+    fun cacheKey(query: String, packageName: String, refreshSignal: Int = 0): String {
+        // Cache content is keyed by (query, packageName) only; refreshSignal is an
+        // external reload trigger and must not fragment the cache.
+        return "q=${query};p=$packageName"
+    }
+
+    /** 事件记录保留天数;设置页/记录页共用这一份状态。 */
+    val eventRetentionDays: StateFlow<Int> = preferenceRepository.eventRetentionDays
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), 7)
+
+    /** Runtime-first update; the local DataStore is only a mirror for manager UI state. */
+    fun setEventRetentionDays(days: Int, onResult: ((Boolean) -> Unit)? = null) {
+        val coerced = days.coerceAtLeast(1)
+        viewModelScope.launch {
+            val success = withContext(Dispatchers.IO) {
+                runtimePreferenceGateway.setEventRetentionDays(coerced)
+            }
+            onResult?.invoke(success)
+        }
+    }
+
+    fun loadEvents(query: String, packageName: String, isRefresh: Boolean, lastId: Long?) {
+        viewModelScope.launch {
+            val request = EventListRequest(
+                lastId = if (isRefresh) null else lastId,
+                pageSize = Constants.PAGE_SIZE,
+                packageName = packageName,
+                query = query,
+            )
+            try {
+                val primary = withContext(Dispatchers.IO) {
+                    loadEventsRemote(
+                        request,
+                        budget = if (isRefresh) PageRemoteCallPolicy.userAction else PageRemoteCallPolicy.visiblePage,
+                    )
+                }
+                val loadedRawEvents = primary.map { toEventInfoForDisplay(it) }
+                val loadedEvents = eventsForDisplay(loadedRawEvents)
+                if (isRefresh) {
+                    _events.value = loadedEvents
+                } else {
+                    _events.value = _events.value + loadedEvents
+                }
+                // Persist the raw refreshed page while retaining raw cached history. The visible
+                // list is filtered, but the cache must remain reversible for "show all events".
+                val cacheKey = cacheKey(query, packageName, 0)
+                val cached = cacheStore.getCached(cacheKey).orEmpty()
+                cacheStore.putCached(
+                    cacheKey,
+                    mergeEventItems(cached, loadedRawEvents).take(MAX_EVENT_LIST_SNAPSHOT_EVENTS),
+                )
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: RuntimeReadUnavailableException) {
+                logW("loadEvents unavailable op=${error.operation} status=${error.status}")
+                // Keep previous events; do not replace with empty.
+            } catch (error: Exception) {
+                logW("loadEvents failed: ${error.message}")
+            }
+        }
+    }
+
+
+
+
+    private suspend fun loadEventsRemote(
+        request: EventListRequest,
+        budget: io.github.magisk317.mipush.manager.client.RemoteCallBudget = PageRemoteCallPolicy.visiblePage,
+    ): List<ManagerEvent> {
+        return eventSource.load(request, budget).requireAvailableEvents(operation = "loadEvents")
+    }
+
+    private fun toEventInfoForDisplay(it: ManagerEvent): EventInfoForDisplay {
+        return EventInfoForDisplay(
+            id = it.id,
+            packageName = it.packageName,
+            configOptions = it.configOptions,
+            channel = it.channel,
+            receiveDate = Date(it.receiveDateMs),
+            title = it.title,
+            content = it.content,
+            appName = it.appName,
+            event = it,
+        )
+    }
+
+    fun startManagePermissions(packageName: String) {
+        eventGateway.startManagePermissions(packageName)
+    }
+
+    fun startConfigPreview(packageName: String) {
+        viewModelScope.launch {
+            eventGateway.startConfigPreview(packageName)
+        }
+    }
+    
+    fun copyToClipboard(content: String) {
+        eventGateway.copyToClipboard(content)
+    }
+    
+    suspend fun mockMessage(event: ManagerEvent): MockReplayOutcome = withContext(Dispatchers.IO) {
+        eventGateway.mockMessage(event)
+    }
+    
+    suspend fun getContent(event: ManagerEvent): String? = withContext(Dispatchers.IO) {
+        eventGateway.getContent(event)
+    }
+
+    suspend fun getJson(event: ManagerEvent): String? = withContext(Dispatchers.IO) {
+        eventGateway.getJson(event)
+    }
+    
+    suspend fun fetchEventsSuspend(isRefresh: Boolean, lastId: Long?, packageName: String, query: String): List<EventInfoForDisplay> {
+        return withContext(Dispatchers.IO) {
+            val request = EventListRequest(
+                lastId = if (isRefresh) null else lastId,
+                pageSize = Constants.PAGE_SIZE,
+                packageName = packageName,
+                query = query,
+            )
+            try {
+                val loadedEvents = loadEventsRemote(
+                    request,
+                    budget = if (isRefresh) PageRemoteCallPolicy.userAction else PageRemoteCallPolicy.visiblePage,
+                ).map { toEventInfoForDisplay(it) }
+                // Always cache the complete remote page, but never hand registration or disabled
+                // rows directly to the UI when "show all events" is off.
+                if (loadedEvents.isNotEmpty()) {
+                    val cached = cacheStore.getCached(cacheKey(query, packageName)).orEmpty()
+                    cacheStore.putCached(
+                        cacheKey(query, packageName),
+                        mergeEventItems(cached, loadedEvents).take(MAX_EVENT_LIST_SNAPSHOT_EVENTS),
+                    )
+                }
+                eventsForDisplay(loadedEvents)
+            } catch (error: RuntimeReadUnavailableException) {
+                logW("fetchEvents unavailable op=${error.operation} status=${error.status}")
+                throw error
+            }
+        }
+    }
+
+    suspend fun deleteEvent(item: EventInfoForDisplay): Boolean {
+        return withContext(Dispatchers.IO) {
+            eventGateway.deleteEvent(item.event)
+        }
+    }
+
+    suspend fun restoreEvent(item: EventInfoForDisplay): EventInfoForDisplay? {
+        return withContext(Dispatchers.IO) {
+            eventGateway.restoreEvent(item.event)?.let { toEventInfoForDisplay(it) }
+        }
+    }
+
+    fun clearHistory() {
+        invalidateEventListSnapshot()
+        viewModelScope.launch(Dispatchers.IO) { cacheStore.clearAll() }
+        settingsManager.clearHistory(context, viewModelScope)
+    }
+
+    /** 按本地日历日聚合的可清理事件条数,key 形如 "2026-07-13"(设备时区)。供日历清理界面。 */
+    suspend fun loadDayCounts(): Map<String, Int> {
+        return withContext(Dispatchers.IO) {
+            eventGateway.countEventsByDay().associate { it.day to it.count }
+        }
+    }
+
+    /** 清理某时间点之前的可清理事件(注册态保留),返回删除条数。 */
+    suspend fun clearHistoryBefore(cutoffMillis: Long): Int {
+        invalidateEventListSnapshot()
+        cacheStore.clearAll()
+        return withContext(Dispatchers.IO) {
+            eventGateway.clearHistoryBefore(cutoffMillis)
+        }
+    }
+
+    /** 清理 [startMillis, endMillis) 区间内的可清理事件(注册态保留),返回删除条数。 */
+    suspend fun clearHistoryInRange(startMillis: Long, endMillis: Long): Int {
+        invalidateEventListSnapshot()
+        cacheStore.clearAll()
+        return withContext(Dispatchers.IO) {
+            eventGateway.clearHistoryInRange(startMillis, endMillis)
+        }
+    }
+}

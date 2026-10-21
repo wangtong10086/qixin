@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dialog_donate_title">Donate</string>
+    <string name="uikit_dialog_donate_summary">If you like this project, you can buy me a cup of coffee. Your support is the motivation for the continuous update and maintenance of this project.</string>
+    <string name="dialog_donate_alipay">Alipay</string>
+    <string name="dialog_donate_wechat">Wechat</string>
+    <string name="dialog_donate_cancel">Cancel</string>
+    
+    <string name="donate_one_time_title">One-time Donation</string>
+    <string name="donate_one_time_099">$0.99</string>
+    <string name="donate_one_time_200">$2.00</string>
+    <string name="donate_one_time_999">$9.99</string>
+    <string name="donate_one_time_1999">$19.99</string>
+    
+    <string name="dialog_donate_alipay_choice_title">Alipay</string>
+    <string name="dialog_donate_alipay_choice_content">Please choose</string>
+    <string name="dialog_donate_alipay_qrcode">Scan QR Code</string>
+    <string name="dialog_donate_alipay_token">Copy Password</string>
+    <string name="alipay_red_packet_code_copied">Password copied: %1$s, open Alipay to receive.</string>
+
+    <string name="alipay_install_prompt">Please install Alipay</string>
+    <string name="alipay_enable_prompt">Please enable Alipay</string>
+    <string name="alipay_platform_order_failed">Failed to create Alipay order</string>
+    <string name="alipay_platform_opening">Opening Alipay…</string>
+    <string name="wechat_install_prompt">Please install Wechat</string>
+    <string name="wechat_enable_prompt">Please enable Wechat</string>
+    <string name="save_to_gallery">Save to gallery</string>
+    <string name="save_to_gallery_success">QR code image saved. Opening %1$s for you.</string>
+    <string name="save_to_gallery_failed">Failed to save</string>
+    <string name="uikit_pref_donate_by_alipay_title">Donation appreciation</string>
+
+    <string name="uikit_version_name">Version name</string>
+    <string name="uikit_version_code">Version code</string>
+    <string name="uikit_manager_version">Manager version</string>
+    <string name="uikit_runtime_version">Runtime version</string>
+    <string name="uikit_framework_type">Framework type</string>
+    <string name="uikit_framework_version">Framework version</string>
+    <string name="uikit_android_version">Android version</string>
+    <string name="uikit_android_codename">Codename</string>
+    <string name="uikit_api_level">API level</string>
+    <string name="uikit_manufacturer">Manufacturer</string>
+    <string name="uikit_model">Model</string>
+    <string name="uikit_pref_join_telegram_group_title">Join Telegram group</string>
+    <string name="uikit_pref_join_telegram_group_summary">Join the Telegram group for discussion and feedback</string>
+    <string name="uikit_pref_join_qq_channel_title">Join QQ channel</string>
+    <string name="uikit_pref_join_qq_channel_summary">Join the QQ channel for discussion and feedback</string>
+    <string name="uikit_pref_source_code_title">Source code</string>
+    <string name="uikit_pref_source_code_summary">View the source code on GitLab</string>
+    <string name="unknown">Unknown</string>
+    <string name="not_installed">Not installed</string>
+
+    <string name="uikit_action_confirm">Confirm</string>
+    <string name="uikit_action_cancel">Cancel</string>
+    <string name="uikit_action_reset">Reset</string>
+    <string name="uikit_action_clear">Clear</string>
+
+    <string name="uikit_log_export_need_root">Root access is required to export logs</string>
+    <string name="uikit_log_export_need_verbose_log">Please enable detailed logging first</string>
+    <string name="uikit_log_export_need_reproduce">Please reproduce the issue before exporting logs</string>
+    <string name="uikit_module_enable_title">Master switch</string>
+    <string name="uikit_module_enable_summary">Enable this module</string>
+    <string name="uikit_theme_title">Theme</string>
+    <string name="uikit_theme_follow_system">Automatic (Follow System)</string>
+    <string name="uikit_theme_light">Light</string>
+    <string name="uikit_theme_dark">Dark</string>
+    <string name="uikit_theme_black">Pure Black</string>
+    <string name="uikit_language_title">Language</string>
+    <string name="uikit_language_follow_system">Follow system</string>
+    <string name="uikit_language_en">English</string>
+    <string name="uikit_language_zh_cn">简体中文</string>
+    <string name="uikit_language_zh_tw">繁體中文</string>
+    <string name="pull_to_refresh_pull">Pull down to refresh</string>
+    <string name="pull_to_refresh_release">Release to refresh</string>
+    <string name="pull_to_refresh_refreshing">Refreshing...</string>
+    <string name="pull_to_refresh_done">Refreshed successfully</string>
+
+    <string name="uikit_style_title">UI style</string>
+    <string name="uikit_style_summary">Switch between Expressive and Miuix styles</string>
+    <string name="uikit_style_expressive">Expressive</string>
+    <string name="uikit_style_miuix">Miuix</string>
+    <string name="pref_enable_analytics_title">Analytics</string>
+    <string name="pref_enable_analytics_summary">Allow anonymous analytics for channel usage, success rates, crashes and technical diagnostics.</string>
+    <string name="mobile_entitlement_title">Device activation status</string>
+    <string name="mobile_entitlement_status">Activation status: %1$s</string>
+    <string name="mobile_entitlement_automation">Feature status: %1$s</string>
+    <string name="mobile_entitlement_allowed">available</string>
+    <string name="mobile_entitlement_paused">paused</string>
+    <string name="mobile_entitlement_issued_at">Activated: %1$s</string>
+    <string name="mobile_entitlement_device_id">Activation ID: %1$s</string>
+    <string name="mobile_entitlement_copy">Copy</string>
+    <string name="mobile_entitlement_copied">Copied</string>
+    <string name="mobile_entitlement_activation_token_label">One-time activation token</string>
+    <string name="mobile_entitlement_activation_token_hint">Paste the 32-character one-time token returned by the bot</string>
+    <string name="mobile_entitlement_activation_token_confirm">Activate with token</string>
+    <string name="mobile_entitlement_activation_token_invalid">Enter a valid 32-character one-time activation token</string>
+    <string name="mobile_entitlement_activation_token_get_hint">Tap “Get activation code”, send it to the bot in the QQ channel or in Telegram, then paste the returned one-time token here.</string>
+    <string name="mobile_entitlement_activate_telegram">Telegram activation</string>
+    <string name="mobile_entitlement_get_activation_code">Get activation code</string>
+    <string name="mobile_entitlement_qq_title">Activation code</string>
+    <string name="mobile_entitlement_qq_code_label">Activation code</string>
+    <string name="mobile_entitlement_qq_join_channel">Join QQ channel</string>
+    <string name="mobile_entitlement_qq_instructions">Copy the activation code, join the QQ channel and send the code or activation link to the bot there. The bot replies with a one-time token — paste it above to finish.</string>
+    <string name="mobile_entitlement_qq_dismiss">Dismiss</string>
+    <string name="mobile_entitlement_qq_entry_missing">The server did not return a QQ entry. Please retry.</string>
+    <string name="mobile_entitlement_refresh">Refresh status</string>
+    <string name="mobile_entitlement_error">Error: %1$s</string>
+    <string name="mobile_entitlement_jump_failed_copied">Could not open the app; the link has been copied to the clipboard</string>
+</resources>

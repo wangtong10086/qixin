@@ -1,0 +1,183 @@
+package io.github.magisk317.mipush.service.runtime
+
+import android.content.Context
+import android.os.Bundle
+import androidx.annotation.NonNull
+import androidx.core.app.NotificationCompat
+import com.xiaomi.channel.commonutils.android.MIUIUtils
+import com.xiaomi.push.service.MIPushNotificationHelper
+import com.xiaomi.push.service.NotificationGroupHelper
+import com.xiaomi.xmpush.thrift.PushMetaInfo
+import com.xiaomi.xmpush.thrift.XmPushActionContainer
+import com.xiaomi.xmpush.thrift.XmPushActionSendMessage
+import com.xiaomi.xmsf.stock.StockNotificationPresentationBridge
+import io.github.magisk317.mipush.notification.AndroidWGroupStrategy
+import io.github.magisk317.mipush.notification.VoipNotificationHelper
+import io.github.magisk317.mipush.notification.policy.NotificationClickFallbackContract
+import io.github.magisk317.mipush.platform.support.XMPushUtils
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+
+internal object MIPushNotificationPresentationSupport {
+    internal data class NotificationInfo(
+        val notificationId: Int,
+        val notificationBuilder: NotificationCompat.Builder,
+    )
+
+    @NonNull
+    fun getNotificationFor(
+        context: Context,
+        container: XmPushActionContainer,
+        decryptedContent: ByteArray,
+        notificationId: Int,
+        sendMessage: XmPushActionSendMessage?,
+    ): NotificationInfo {
+        val metaInfo = container.metaInfo
+        val packageName = MIPushNotificationHelper.getTargetPackage(container)
+
+        val pkgCtx = XMPushUtils.getPackageContext(context, packageName)
+        val message = MIPushNotificationStyleSupport.createMessage(context, container, pkgCtx)
+        val custom = XMPushUtils.getConfiguration(metaInfo)
+        val useMessagingStyle = message != null && custom.useMessagingStyle(false)
+
+        val sourceGroup = getSourceGroup(metaInfo)
+        // Stock 7.4.67-C t0 keeps delegated notifications under the target package's
+        // default group. Only a non-MIUI payload that explicitly disables that default
+        // retains its source group, so use the same identity before click/group handling.
+        val group = MIPushNotificationPublishHelper.resolveStockGroup(
+            targetPackage = packageName,
+            sourceGroup = sourceGroup,
+            disableDefault = metaInfo.extra
+                ?.get("notification_group_disable_default")
+                ?.toBoolean() == true,
+            isMiui = MIUIUtils.isMIUI(),
+        )
+        val intentExtra = android.content.Intent()
+        intentExtra.putExtra(io.github.magisk317.mipush.common.Constants.INTENT_NOTIFICATION_ID, notificationId)
+        intentExtra.putExtra(io.github.magisk317.mipush.common.Constants.INTENT_NOTIFICATION_GROUP, group)
+
+        val localPendingIntent = MIPushNotificationIntentSupport.buildClickedPendingIntent(
+            context,
+            container,
+            decryptedContent,
+            notificationId,
+            intentExtra.extras,
+            sendMessage,
+            targetPackageName = packageName,
+        )
+
+        val voipBuilder = if (VoipNotificationHelper.isVoipNotification(metaInfo)) {
+            VoipNotificationHelper.buildVoipNotification(
+                context, packageName, metaInfo, notificationId, localPendingIntent
+            )
+        } else null
+
+        val notificationBuilder = voipBuilder ?: if (useMessagingStyle) {
+            MIPushNotificationStyleSupport.messagingStyleNotificationBuilder(
+                context,
+                container,
+                notificationId,
+                message,
+                pkgCtx,
+            )
+        } else {
+            MIPushNotificationStyleSupport.normalStyleNotificationBuilder(pkgCtx, container.metaInfo, packageName)
+        }
+
+        if (MIPushNotificationIntentSupport.shouldUseLauncherFallback(packageName)) {
+            notificationBuilder.extras.putBoolean(
+                NotificationClickFallbackContract.USE_LAUNCHER_FALLBACK,
+                true,
+            )
+        }
+
+        if (metaInfo.extra != null) {
+            MIPushNotificationIntentSupport.addStyleActions(
+                notificationBuilder,
+                context,
+                packageName,
+                notificationId,
+                metaInfo.extra,
+            )
+        }
+
+        StockNotificationPresentationBridge.apply(metaInfo, notificationBuilder)
+
+        if (MIUIUtils.isMIUI()) {
+            // Stock 7.4.67-C t0 writes these fields into each MIUI notification so
+            // active-notification clear and reporting can identify delegated records.
+            // This custom builder bypasses t0, so it must restore that metadata here.
+            val stockExtras = Bundle().apply {
+                MIPushNotificationPublishHelper.buildStockMiuiIdentityExtras(container, packageName)
+                    .forEach(::putString)
+            }
+            notificationBuilder.addExtras(stockExtras)
+        }
+        AndroidWGroupStrategy.applyIfEligible(context, sourceGroup, notificationBuilder.extras)
+        val effectiveGroup = group?.let {
+            NotificationGroupHelper.maskGroup(context, notificationBuilder.extras, it)
+        }
+
+        notificationBuilder.setGroup(effectiveGroup)
+        notificationBuilder.setGroupSummary(
+            metaInfo.extra?.get("notification_is_summary")?.toBoolean() == true
+        )
+
+        if (localPendingIntent != null) {
+            notificationBuilder.setContentIntent(localPendingIntent)
+            MIPushNotificationIntentSupport.carryPendingIntentForTemporarilyWhitelisted(
+                context,
+                container,
+                notificationId,
+                notificationBuilder,
+            )
+        }
+        return NotificationInfo(notificationId, notificationBuilder)
+    }
+
+    /**
+     * View-time re-computation of the presentation metadata that [getNotificationFor] applies at
+     * publish time, for the manager event-detail debug JSON. Read-only; may differ from the
+     * published notification when configuration or app state changed.
+     */
+    internal fun describePresentation(
+        context: Context,
+        container: XmPushActionContainer,
+    ): JsonObject {
+        val metaInfo = container.metaInfo
+        val packageName = MIPushNotificationHelper.getTargetPackage(container)
+        val pkgCtx = XMPushUtils.getPackageContext(context, packageName)
+        val message = MIPushNotificationStyleSupport.createMessage(context, container, pkgCtx)
+        val custom = XMPushUtils.getConfiguration(metaInfo)
+        val useMessagingStyle = message != null && custom.useMessagingStyle(false)
+        val sourceGroup = metaInfo?.let { getSourceGroup(it) }
+        val group = MIPushNotificationPublishHelper.resolveStockGroup(
+            targetPackage = packageName,
+            sourceGroup = sourceGroup,
+            disableDefault = metaInfo?.extra
+                ?.get("notification_group_disable_default")
+                ?.toBoolean() == true,
+            isMiui = MIUIUtils.isMIUI(),
+        )
+        return buildJsonObject {
+            put("voip", VoipNotificationHelper.isVoipNotification(metaInfo))
+            put("messagingStyle", useMessagingStyle)
+            group?.let { put("group", it) }
+            put(
+                "groupSummary",
+                metaInfo?.extra?.get("notification_is_summary")?.toBoolean() == true,
+            )
+            put(
+                "launcherFallbackFlagged",
+                MIPushNotificationIntentSupport.shouldUseLauncherFallback(packageName),
+            )
+        }
+    }
+
+    private fun getSourceGroup(metaInfo: PushMetaInfo): String? {
+        return XMPushUtils.getConfiguration(metaInfo)
+            .notificationGroup(null)
+            ?.takeIf { it.isNotBlank() }
+    }
+}

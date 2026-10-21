@@ -1,0 +1,6 @@
+Qixin / 栖信
+Copyright 2026 Qixin contributors
+GPL-3.0-only.
+Local socket, supervision and signing tooling adapted from Qixu (Apache-2.0); see vendor/QIXU-LICENSE.
+Pinned MiPushFramework and its build submodule sources are included under runtime/upstream; retain their LICENSE and copyright notices. Commit provenance is recorded in runtime/upstream-lock.json. The headless runtime is managed by Qixin; see runtime/PATCHES.md for local changes. No Google Play services binaries are distributed.
+Lucide icons are distributed under the ISC license; see app/src/main/assets/lucide-license.txt.

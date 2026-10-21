@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="uikit_update_checking_title">Check for Updates</string>
+    <string name="uikit_update_checking_message">Connecting to update server, please wait…</string>
+
+    <string name="uikit_update_dialog_title">Update Available (v%1$s)</string>
+    <string name="uikit_update_dialog_title_force">Important Update (v%1$s)</string>
+    <string name="uikit_update_version_info">Current: v%1$s (%2$d)\nLatest: v%3$s (%4$d)</string>
+    <string name="uikit_update_release_notes_label">Release Notes:</string>
+    <string name="uikit_update_force_warning">⚠️ This build is a CI / testing version. Deprecated versions are not supported. You must update to the latest version to continue.</string>
+    <string name="uikit_update_btn_update">Update Now</string>
+    <string name="uikit_update_btn_remind_later">Remind Later</string>
+    <string name="uikit_update_btn_exit">Exit App</string>
+
+    <string name="uikit_update_downloading_title">Downloading update…</string>
+    <string name="uikit_update_downloading_message">Downloading update package…</string>
+
+    <string name="uikit_update_ready_title">Update Ready</string>
+    <string name="uikit_update_ready_message">The new version has been downloaded. Tap install to proceed.</string>
+    <string name="uikit_update_ready_message_force">The latest update has been downloaded. Please install now to continue using.</string>
+    <string name="uikit_update_btn_install">Install Now</string>
+
+    <string name="uikit_update_failed_title">Update Check Failed</string>
+    <string name="uikit_update_btn_retry">Retry</string>
+
+    <string name="uikit_update_latest_title">Check for Updates</string>
+    <string name="uikit_update_latest_message">You are already on the latest version.</string>
+
+    <string name="uikit_update_err_no_source">Unable to connect to update server or no valid update found.</string>
+    <string name="uikit_update_err_cannot_create_dir">Unable to create update download directory</string>
+    <string name="uikit_update_err_download_http">Download failed (HTTP %1$d)</string>
+    <string name="uikit_update_err_save_failed">Failed to save update package</string>
+    <string name="uikit_update_err_md5_mismatch">Package MD5 verification failed</string>
+    <string name="uikit_update_err_network">Network error during download</string>
+    <string name="uikit_update_err_uri_failed">Failed to obtain APK file URI: %1$s</string>
+    <string name="uikit_update_err_intent_failed">Unable to start package installer. Please manually install %1$s</string>
+    <string name="uikit_update_ci_notes_format">CI Automated Build\nCommit: %1$s\nBranch: %2$s\n⚠️ CI builds are intended for testing and debugging. Previous versions are deprecated.</string>
+</resources>

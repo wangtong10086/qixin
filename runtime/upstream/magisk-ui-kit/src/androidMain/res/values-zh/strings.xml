@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dialog_donate_title">打赏支持</string>
+    <string name="uikit_dialog_donate_summary">感谢开发者</string>
+    <string name="dialog_donate_alipay">支付宝</string>
+    <string name="dialog_donate_wechat">微信</string>
+    <string name="dialog_donate_cancel">取消</string>
+    
+    <string name="donate_one_time_title">一次性赞助</string>
+    <string name="donate_one_time_099">一杯可乐\n($0.99)</string>
+    <string name="donate_one_time_200">一杯咖啡\n($2.00)</string>
+    <string name="donate_one_time_999">一份披萨\n($9.99)</string>
+    <string name="donate_one_time_1999">一顿大餐\n($19.99)</string>
+
+    <string name="dialog_donate_alipay_choice_title">支付宝打赏</string>
+    <string name="dialog_donate_alipay_choice_content">请选择打赏方式</string>
+    <string name="dialog_donate_alipay_qrcode">保存二维码扫描</string>
+    <string name="dialog_donate_alipay_token">复制口令红包</string>
+    <string name="alipay_red_packet_code_copied">已复制口令：%1$s，打开支付宝即可领取并打赏。</string>
+
+    <string name="alipay_install_prompt">请先安装支付宝</string>
+    <string name="alipay_enable_prompt">请先启用支付宝</string>
+    <string name="alipay_platform_order_failed">创建支付宝订单失败</string>
+    <string name="alipay_platform_opening">正在打开支付宝…</string>
+    <string name="wechat_install_prompt">请先安装微信</string>
+    <string name="wechat_enable_prompt">请先启用微信</string>
+    <string name="save_to_gallery">保存到相册</string>
+    <string name="save_to_gallery_success">已保存二维码图片，正在为您打开 %1$s。</string>
+    <string name="save_to_gallery_failed">保存失败</string>
+    <string name="uikit_pref_donate_by_alipay_title">打赏感谢</string>
+    <string name="uikit_version_name">版本名称</string>
+    <string name="uikit_version_code">版本号</string>
+    <string name="uikit_manager_version">管理器版本</string>
+    <string name="uikit_runtime_version">运行时版本</string>
+    <string name="uikit_framework_type">框架类型</string>
+    <string name="uikit_framework_version">框架版本</string>
+    <string name="uikit_android_version">Android 版本</string>
+    <string name="uikit_android_codename">系统开发代号</string>
+    <string name="uikit_api_level">API 级别</string>
+    <string name="uikit_manufacturer">厂商</string>
+    <string name="uikit_model">型号</string>
+    <string name="uikit_pref_join_telegram_group_title">Telegram</string>
+    <string name="uikit_pref_join_telegram_group_summary">点击加入</string>
+    <string name="uikit_pref_join_qq_channel_title">QQ 频道</string>
+    <string name="uikit_pref_join_qq_channel_summary">点击加入</string>
+    <string name="uikit_pref_source_code_title">源代码</string>
+    <string name="uikit_pref_source_code_summary">欢迎 Star</string>
+    <string name="unknown">未知</string>
+    <string name="not_installed">未安装</string>
+
+    <string name="uikit_action_confirm">确定</string>
+    <string name="uikit_action_cancel">取消</string>
+    <string name="uikit_action_reset">重置</string>
+    <string name="uikit_action_clear">清空</string>
+
+    <string name="uikit_log_export_need_root">导出日志需要 root 权限</string>
+    <string name="uikit_log_export_need_verbose_log">请先开启详细日志</string>
+    <string name="uikit_log_export_need_reproduce">请复现问题后再导出日志</string>
+    <string name="uikit_module_enable_title">主开关</string>
+    <string name="uikit_module_enable_summary">启用本模块</string>
+    <string name="uikit_theme_title">主题</string>
+    <string name="uikit_theme_follow_system">自动 (跟随系统)</string>
+    <string name="uikit_theme_light">浅色</string>
+    <string name="uikit_theme_dark">深色</string>
+    <string name="uikit_theme_black">纯黑</string>
+    <string name="uikit_language_title">语言</string>
+    <string name="uikit_language_follow_system">跟随系统</string>
+    <string name="uikit_language_en">English</string>
+    <string name="uikit_language_zh_cn">简体中文</string>
+    <string name="uikit_language_zh_tw">繁體中文</string>
+    <string name="pull_to_refresh_pull">下拉刷新</string>
+    <string name="pull_to_refresh_release">松开刷新</string>
+    <string name="pull_to_refresh_refreshing">正在刷新…</string>
+    <string name="pull_to_refresh_done">刷新完成</string>
+
+    <string name="uikit_style_title">界面风格</string>
+    <string name="uikit_style_summary">在 Expressive 与 Miuix 风格之间切换</string>
+    <string name="uikit_style_expressive">Expressive</string>
+    <string name="uikit_style_miuix">Miuix</string>
+</resources>

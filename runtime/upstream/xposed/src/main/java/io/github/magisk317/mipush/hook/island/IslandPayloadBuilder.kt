@@ -1,0 +1,486 @@
+package io.github.magisk317.mipush.hook.island
+
+import android.app.Notification
+import android.content.Context
+import android.graphics.drawable.Icon
+import android.os.Build
+import android.os.Bundle
+import io.github.d4viddf.hyperisland_kit.HyperAction
+import io.github.d4viddf.hyperisland_kit.HyperIslandNotification
+import io.github.d4viddf.hyperisland_kit.HyperPicture
+import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoLeft
+import io.github.d4viddf.hyperisland_kit.models.ImageTextInfoRight
+import io.github.d4viddf.hyperisland_kit.models.PicInfo
+import io.github.d4viddf.hyperisland_kit.models.TextInfo
+import io.github.magisk317.mipush.notification.policy.NotificationStyle
+import io.github.magisk317.mipush.common.island.DynamicIslandColorResolver
+import io.github.magisk317.mipush.common.island.IslandOptions
+import io.github.magisk317.mipush.common.island.IslandVisualContract
+import io.github.magisk317.mipush.notification.policy.NotificationProgressTextSupport
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+object IslandPayloadBuilder {
+    private const val BUSINESS = "mipush_framework_push"
+    private const val PIC_ICON_KEY = "mipush_icon"
+    private const val PIC_ICON = "miui.focus.pic_mipush_icon"
+    private const val FOCUS_PICS = "miui.focus.pics"
+    private const val FOCUS_ACTIONS = "miui.focus.actions"
+    private const val FOCUS_ACTION_PREFIX = "miui.focus.action_"
+
+    fun buildFocusParam(
+        context: Context,
+        title: String,
+        content: String,
+        icon: Icon? = null,
+        timeoutSecs: Int = 5,
+        firstFloat: Boolean = true,
+        enableFloat: Boolean = true,
+        showNotification: Boolean = true,
+        showIslandIcon: Boolean = true,
+        highlightColor: String? = null,
+        islandOuterGlow: Boolean = false,
+        actions: List<Notification.Action> = emptyList(),
+        style: NotificationStyle = NotificationStyle.GENERAL,
+        smallOnly: Boolean = false,
+    ): String {
+        val visualHighlightColor = highlightColor
+        val visualOuterGlow = islandOuterGlow
+        return createNotification(
+            context = context,
+            title = title,
+            content = content,
+            icon = icon ?: fallbackIcon(context),
+            timeoutSecs = timeoutSecs,
+            firstFloat = firstFloat,
+            enableFloat = enableFloat,
+            showNotification = showNotification,
+            showIslandIcon = showIslandIcon,
+            actions = actions,
+            style = style,
+        )
+            .buildJsonParam()
+            .normalizeShowNotification(showNotification)
+            .fixTextButtonJson()
+            .injectIslandAppearance(visualHighlightColor, visualOuterGlow)
+            .preserveTriggerAreas(smallOnly)
+    }
+
+    fun buildExtras(
+        context: Context,
+        title: String,
+        content: String,
+        icon: Icon? = null,
+        timeoutSecs: Int = 5,
+        firstFloat: Boolean = true,
+        enableFloat: Boolean = true,
+        showNotification: Boolean = true,
+        sourcePackage: String? = null,
+        userId: Int? = null,
+        sourceChannelId: String? = null,
+        actions: List<Notification.Action> = emptyList(),
+        showIslandIcon: Boolean = true,
+        highlightColor: String? = null,
+        islandOuterGlow: Boolean = false,
+        style: NotificationStyle = NotificationStyle.GENERAL,
+        smallOnly: Boolean = false,
+        optionsOverride: IslandOptions? = null,
+    ): Bundle {
+        val safeContent = content.ifBlank { title }
+        val options = optionsOverride ?: IslandPreferences.current(sourcePackage, userId)
+        val payloadIcon = icon ?: fallbackIcon(context)
+        val dynamicColor = DynamicIslandColorResolver.resolve(
+            context = context,
+            packageName = sourcePackage,
+            notificationIcon = payloadIcon,
+        )
+        val resolvedHighlightColor = highlightColor ?: dynamicColor
+        val resolvedOuterGlow = islandOuterGlow
+        val notification = createNotification(
+            context = context,
+            title = title,
+            content = safeContent,
+            icon = payloadIcon,
+            timeoutSecs = timeoutSecs,
+            firstFloat = firstFloat,
+            enableFloat = enableFloat,
+            showNotification = showNotification,
+            showIslandIcon = showIslandIcon,
+            actions = actions,
+            style = style,
+        )
+        return Bundle().apply {
+            putBundle(
+                FOCUS_PICS,
+                Bundle().apply {
+                    putParcelable(PIC_ICON, icon ?: fallbackIcon(context))
+                },
+            )
+            putString(PIC_ICON, PIC_ICON)
+            buildActionsBundle(actions)?.let { actionsBundle ->
+                putBundle(FOCUS_ACTIONS, actionsBundle)
+                flattenActions(actionsBundle, this)
+            }
+            putString(
+                IslandDispatchContract.FOCUS_PARAM,
+                notification
+                    .buildJsonParam()
+                    .normalizeShowNotification(showNotification)
+                    .fixTextButtonJson()
+                    .injectIslandAppearance(resolvedHighlightColor, resolvedOuterGlow)
+                    .preserveTriggerAreas(smallOnly),
+            )
+            putString(IslandVisualContract.OWNER_KEY, IslandVisualContract.MIPUSH_OWNER)
+            putInt(IslandVisualContract.VISUAL_VERSION_KEY, IslandVisualContract.VERSION)
+            putString(IslandVisualContract.VISUAL_MARKER_KEY, IslandVisualContract.VISUAL_MARKER)
+            resolvedHighlightColor?.let { putString(IslandVisualContract.HIGHLIGHT_COLOR_KEY, it) }
+            if (resolvedOuterGlow) {
+                resolvedHighlightColor?.let { putString(IslandVisualContract.GLOW_COLOR_KEY, it) }
+                resolvedHighlightColor?.let { putString(IslandVisualContract.ISLAND_GLOW_COLOR_KEY, it) }
+                resolvedHighlightColor?.let { putString(IslandVisualContract.FOCUS_GLOW_COLOR_KEY, it) }
+            }
+            putBoolean(IslandDispatchContract.PROCESSED, true)
+            if (resolvedOuterGlow) {
+                putString("miui.bigIsland.effect.src", "outer_glow")
+            }
+            sourcePackage?.let { putString(IslandDispatchContract.SOURCE_PACKAGE, it) }
+            sourceChannelId?.let { putString(IslandDispatchContract.SOURCE_CHANNEL, it) }
+        }
+    }
+
+    private fun createNotification(
+        context: Context,
+        title: String,
+        content: String,
+        icon: Icon,
+        timeoutSecs: Int,
+        firstFloat: Boolean,
+        enableFloat: Boolean,
+        showNotification: Boolean,
+        showIslandIcon: Boolean,
+        actions: List<Notification.Action>,
+        style: NotificationStyle = NotificationStyle.GENERAL,
+    ): HyperIslandNotification {
+        val hyperActions = actions.take(2).mapIndexedNotNull { index, action ->
+            val pendingIntent = action.actionIntent ?: return@mapIndexedNotNull null
+            HyperAction(
+                key = actionKey(index),
+                title = action.title?.toString().orEmpty(),
+                pendingIntent = pendingIntent,
+                actionIntentType = 2,
+            )
+        }
+        val primaryAction = hyperActions.firstOrNull()
+        val builder = HyperIslandNotification.Builder(
+            context = context,
+            businessName = BUSINESS,
+            ticker = title,
+        )
+            .addPicture(HyperPicture(PIC_ICON_KEY, icon))
+            .setIslandConfig(timeout = timeoutSecs)
+            .setIslandFirstFloat(firstFloat)
+            .setEnableFloat(enableFloat)
+            .setShowNotification(showNotification)
+            .setReopen(false)
+            .setAodConfig(title = content)
+
+        builder.setSmallIsland(PIC_ICON_KEY)
+
+        when (style) {
+            NotificationStyle.MESSAGE -> applyChatTemplate(builder, title, content, showIslandIcon, primaryAction)
+            NotificationStyle.BANNER -> applyIconTextTemplate(builder, title, content, showIslandIcon, primaryAction)
+            NotificationStyle.ALERT -> applyAlertTemplate(builder, title, content, showIslandIcon, primaryAction)
+            NotificationStyle.PROMO -> applyPromoTemplate(builder, title, content, showIslandIcon, primaryAction)
+            NotificationStyle.MEDIA -> applyMediaTemplate(builder, title, content, showIslandIcon)
+            NotificationStyle.PROGRESS -> applyProgressTemplate(builder, title, content, showIslandIcon, primaryAction)
+            NotificationStyle.GENERAL -> applyIconTextTemplate(builder, title, content, showIslandIcon, primaryAction)
+        }
+
+        if (hyperActions.isNotEmpty()) {
+            hyperActions.forEach { builder.addHiddenAction(it) }
+            builder.setTextButtons(*hyperActions.toTypedArray())
+        }
+
+        return builder
+    }
+
+    private fun applyChatTemplate(
+        builder: HyperIslandNotification,
+        title: String,
+        content: String,
+        showIslandIcon: Boolean,
+        action: HyperAction?,
+    ) {
+        builder.setChatInfo(title = title, content = content, pictureKey = PIC_ICON_KEY)
+        builder.setStandardBigIslandInfo(title, content, showIslandIcon)
+        action?.let { builder.setHintAction(title, content, it) }
+    }
+
+    private fun applyIconTextTemplate(
+        builder: HyperIslandNotification,
+        title: String,
+        content: String,
+        showIslandIcon: Boolean,
+        action: HyperAction?,
+    ) {
+        builder.setIconTextInfo(picKey = PIC_ICON_KEY, title = title, content = content)
+        builder.setStandardBigIslandInfo(title, content, showIslandIcon)
+        action?.let { builder.setHintAction(title, content, it) }
+    }
+
+    private fun applyAlertTemplate(
+        builder: HyperIslandNotification,
+        title: String,
+        content: String,
+        showIslandIcon: Boolean,
+        action: HyperAction?,
+    ) {
+        val countdownMs = NotificationProgressTextSupport.extractCountdownMillis(title, content)
+        if (countdownMs > 0) {
+            builder.setHighlightInfo(title = title, content = content, picKey = PIC_ICON_KEY)
+            builder.setBigIslandCountdown(countdownMs, PIC_ICON_KEY)
+            if (action != null) {
+                builder.setHintAction(NotificationProgressTextSupport.resolveAlertHint(title, content) ?: title, null, action)
+            }
+            return
+        }
+
+        builder.setIconTextInfo(picKey = PIC_ICON_KEY, title = title, content = content)
+        builder.setTwoLineBigIslandInfo(title, content, showIslandIcon)
+        action?.let { builder.addHiddenAction(it) }
+    }
+
+    private fun applyPromoTemplate(
+        builder: HyperIslandNotification,
+        title: String,
+        content: String,
+        showIslandIcon: Boolean,
+        action: HyperAction?,
+    ) {
+        builder.setHighlightInfoV3(
+            primaryText = title,
+            secondaryText = content,
+            action = action,
+        )
+        builder.setStandardBigIslandInfo(title, content, showIslandIcon)
+    }
+
+    private fun applyMediaTemplate(
+        builder: HyperIslandNotification,
+        title: String,
+        content: String,
+        showIslandIcon: Boolean,
+    ) {
+        builder.setCoverInfo(picKey = PIC_ICON_KEY, title = title, content = content)
+        builder.setStandardBigIslandInfo(title, content, showIslandIcon)
+    }
+
+    private fun applyProgressTemplate(
+        builder: HyperIslandNotification,
+        title: String,
+        content: String,
+        showIslandIcon: Boolean,
+        action: HyperAction?,
+    ) {
+        builder.setIconTextInfo(picKey = PIC_ICON_KEY, title = title, content = content)
+        val progress = NotificationProgressTextSupport.extractProgressPercent(content)
+        if (progress in 0..100) {
+            builder.setProgressBar(progress = progress)
+            builder.setSmallIslandCircularProgress(
+                pictureKey = PIC_ICON_KEY,
+                progress = progress,
+            )
+            builder.setBigIslandProgressCircle(
+                pictureKey = PIC_ICON_KEY,
+                title = title,
+                progress = progress,
+            )
+        } else {
+            builder.setProgressBar(progress = 0)
+            builder.setStandardBigIslandInfo(title, content, showIslandIcon)
+        }
+        val hintLabel = NotificationProgressTextSupport.resolveProgressHint(title, content)
+        if (hintLabel != null) {
+            if (action != null) {
+                builder.setHintAction(hintLabel, null, action)
+            } else {
+                builder.setHintInfo(hintLabel)
+            }
+        }
+    }
+
+    private fun HyperIslandNotification.setStandardBigIslandInfo(
+        title: String,
+        content: String,
+        showIslandIcon: Boolean,
+    ) {
+        setBigIslandInfo(
+            left = if (showIslandIcon) {
+                ImageTextInfoLeft(
+                    type = 1,
+                    picInfo = PicInfo(type = 1, pic = PIC_ICON_KEY),
+                    textInfo = TextInfo(title = title),
+                )
+            } else {
+                ImageTextInfoLeft(
+                    type = 1,
+                    textInfo = TextInfo(title = title),
+                )
+            },
+            right = ImageTextInfoRight(
+                type = 2,
+                textInfo = TextInfo(
+                    title = content,
+                    narrowFont = true,
+                ),
+            ),
+        )
+    }
+
+    private fun HyperIslandNotification.setTwoLineBigIslandInfo(
+        title: String,
+        content: String,
+        showIslandIcon: Boolean,
+    ) {
+        setBigIslandInfo(
+            left = if (showIslandIcon) {
+                ImageTextInfoLeft(
+                    type = 1,
+                    picInfo = PicInfo(type = 1, pic = PIC_ICON_KEY),
+                    textInfo = TextInfo(title = title, content = content),
+                )
+            } else {
+                ImageTextInfoLeft(
+                    type = 1,
+                    textInfo = TextInfo(title = title, content = content),
+                )
+            },
+        )
+    }
+
+    private fun buildActionsBundle(actions: List<Notification.Action>): Bundle? {
+        val bundle = Bundle()
+        actions.take(2).forEachIndexed { index, action ->
+            val key = "$FOCUS_ACTION_PREFIX${actionKey(index)}"
+            bundle.putParcelable(key, action)
+        }
+        return if (bundle.isEmpty) null else bundle
+    }
+
+    private fun actionKey(index: Int): String = "mipush_island_action_$index"
+
+    private fun flattenActions(actionsBundle: Bundle, target: Bundle) {
+        for (key in actionsBundle.keySet()) {
+            target.putParcelable(key, actionsBundle.getNotificationAction(key))
+        }
+    }
+
+    private fun Bundle.getNotificationAction(key: String): Notification.Action? {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelable(key, Notification.Action::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            getParcelable(key)
+        }
+    }
+
+    private fun fallbackIcon(context: Context): Icon {
+        return Icon.createWithResource(context, android.R.drawable.sym_def_app_icon)
+    }
+
+    private fun String.fixTextButtonJson(): String {
+        return try {
+            val root = Json.parseToJsonElement(this).jsonObject
+            val paramV2Element = root["param_v2"]?.jsonObject ?: return this
+            val buttonsElement = paramV2Element["textButton"]?.jsonArray ?: return this
+            
+            val newButtons = JsonArray(buttonsElement.map { buttonElement ->
+                val button = buttonElement.jsonObject
+                val action = button["actionIntent"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }
+                if (action != null) {
+                    buildJsonObject {
+                        button.forEach { k, v -> if (k != "actionIntent" && k != "actionIntentType") put(k, v) }
+                        put("action", JsonPrimitive(action))
+                    }
+                } else {
+                    button
+                }
+            })
+            
+            val newParamV2 = buildJsonObject {
+                paramV2Element.forEach { k, v -> if (k != "textButton") put(k, v) }
+                put("textButton", newButtons)
+            }
+            
+            buildJsonObject {
+                root.forEach { k, v -> if (k != "param_v2") put(k, v) }
+                put("param_v2", newParamV2)
+            }.toString()
+        } catch (_: Throwable) {
+            this
+        }
+    }
+
+    internal fun normalizeShowNotificationJson(raw: String, showNotification: Boolean): String {
+        return try {
+            val root = Json.parseToJsonElement(raw).jsonObject
+            buildJsonObject {
+                root.forEach { k, v -> if (k != "isShowNotification" && k != "param_v2") put(k, v) }
+                put("isShowNotification", JsonPrimitive(showNotification))
+                root["param_v2"]?.jsonObject?.let { paramV2 ->
+                    put("param_v2", buildJsonObject {
+                        paramV2.forEach { k, v -> if (k != "isShowNotification" && k != "showNotification") put(k, v) }
+                        put("isShowNotification", JsonPrimitive(showNotification))
+                        put("showNotification", JsonPrimitive(showNotification))
+                    })
+                }
+            }.toString()
+        } catch (_: Throwable) {
+            raw
+        }
+    }
+
+    private fun String.normalizeShowNotification(showNotification: Boolean): String =
+        normalizeShowNotificationJson(this, showNotification)
+
+    private fun String.injectIslandAppearance(
+        highlightColor: String?,
+        islandOuterGlow: Boolean,
+    ): String {
+        if (highlightColor.isNullOrBlank() && !islandOuterGlow) return this
+        return try {
+            val root = Json.parseToJsonElement(this).jsonObject
+            val paramV2Element = root["param_v2"]?.jsonObject ?: return this
+            val paramIslandElement = paramV2Element["param_island"]?.jsonObject ?: JsonObject(emptyMap())
+            
+            val newParamIsland = buildJsonObject {
+                paramIslandElement.forEach { k, v -> put(k, v) }
+                if (!highlightColor.isNullOrBlank()) put("highlightColor", JsonPrimitive(highlightColor))
+                if (islandOuterGlow) put("outEffectSrc", JsonPrimitive("outer_glow"))
+            }
+            
+            val newParamV2 = buildJsonObject {
+                paramV2Element.forEach { k, v -> if (k != "param_island") put(k, v) }
+                put("param_island", newParamIsland)
+            }
+            
+            buildJsonObject {
+                root.forEach { k, v -> if (k != "param_v2") put(k, v) }
+                put("param_v2", newParamV2)
+            }.toString()
+        } catch (_: Throwable) {
+            this
+        }
+    }
+
+    internal fun preserveTriggerAreasJson(raw: String): String = raw
+
+    private fun String.preserveTriggerAreas(smallOnly: Boolean): String =
+        if (smallOnly) preserveTriggerAreasJson(this) else this
+}

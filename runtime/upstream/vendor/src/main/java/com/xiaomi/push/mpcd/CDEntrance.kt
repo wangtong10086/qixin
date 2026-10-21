@@ -1,0 +1,127 @@
+package com.xiaomi.push.mpcd
+
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import com.xiaomi.channel.commonutils.logger.MyLog
+import com.xiaomi.channel.commonutils.misc.ScheduledJobManager
+import com.xiaomi.push.mpcd.job.BroadcastActionCollectionjob
+import com.xiaomi.push.mpcd.job.CollectionJob
+import com.xiaomi.push.mpcd.receivers.BroadcastActionsReceiver
+import com.xiaomi.push.service.OnlineConfig
+import com.xiaomi.xmpush.thrift.ClientCollectionType
+import com.xiaomi.xmpush.thrift.ConfigKey
+import com.xiaomi.xmpush.thrift.DataCollectionItem
+
+/*
+ * Stock reference: com.xiaomi.xmsf 7.4.67-C (versionCode 70004067),
+ * split-XiaomiServiceFrameworkCN-master.apk sha256 444e9f128591e04e38672bfe44a246ab3fa97ae68e95882839d8a7afe766df2b,
+ * JADX paths:
+ * - com.xiaomi.xmsf/stock/split-XiaomiServiceFrameworkCN-master/sources/vb/b.java
+ * - com.xiaomi.xmsf/stock/split-XiaomiServiceFrameworkCN-master/sources/u9/e.java
+ * Stock package collection entrance is split between vb.b and u9.e; this file keeps the deobfuscated CDEntrance API.
+ */
+object CDEntrance {
+    private const val BROADCAST_ACTION_PERIOD = 1L
+
+    private fun getIntentFilter(): IntentFilter {
+        return IntentFilter().apply {
+            addAction("android.intent.action.PACKAGE_ADDED")
+            addAction("android.intent.action.PACKAGE_CHANGED")
+            addAction("android.intent.action.PACKAGE_DATA_CLEARED")
+            addAction("android.intent.action.PACKAGE_REPLACED")
+            addAction("android.intent.action.PACKAGE_RESTARTED")
+            addAction("android.intent.action.PACKAGE_REMOVED")
+            addDataScheme("package")
+        }
+    }
+
+    private fun getIntentHandler(): IntentHandler {
+        return IntentHandler { context, intent ->
+            ScheduledJobManager.getInstance(context).addOneShootJob {
+                handleIntent(context, intent)
+            }
+        }
+    }
+
+    private fun handleIntent(context: Context, intent: Intent) {
+        try {
+            val dataString = intent.dataString ?: return
+            if (dataString.isEmpty()) return
+            val strArrSplit = dataString.split(":")
+            if (strArrSplit.size < 2 || strArrSplit[1].isEmpty()) return
+            val pkgName = strArrSplit[1]
+            val currentTime = System.currentTimeMillis()
+            val booleanValue = OnlineConfig.getInstance(context)
+                .getBooleanValue(ConfigKey.BroadcastActionCollectionSwitch.value, true)
+
+            when (intent.action) {
+                "android.intent.action.PACKAGE_RESTARTED" -> {
+                    if (CDataHelper.checkDataCollectionJobMutual(context, "12", 1L) || !booleanValue) return
+                    if (BroadcastActionCollectionjob.mRestartedActions.isEmpty()) {
+                        BroadcastActionCollectionjob.mRestartedActions += Constants.ACTION_PACKAGE_RESTARTED + ":"
+                    }
+                    BroadcastActionCollectionjob.mRestartedActions += "$pkgName${Constants.SEPARATOR_LEFT_PARENTESIS}$currentTime${Constants.SEPARATOR_RIGHT_PARENTESIS},"
+                }
+                "android.intent.action.PACKAGE_CHANGED" -> {
+                    if (CDataHelper.checkDataCollectionJobMutual(context, "12", 1L) || !booleanValue) return
+                    if (BroadcastActionCollectionjob.mChangedActions.isEmpty()) {
+                        BroadcastActionCollectionjob.mChangedActions += Constants.ACTION_PACKAGE_CHANGED + ":"
+                    }
+                    BroadcastActionCollectionjob.mChangedActions += "$pkgName${Constants.SEPARATOR_LEFT_PARENTESIS}$currentTime${Constants.SEPARATOR_RIGHT_PARENTESIS},"
+                }
+                "android.intent.action.PACKAGE_ADDED" -> {
+                    if (intent.extras?.getBoolean("android.intent.extra.REPLACING") != true && booleanValue) {
+                        writeActionInfo(context, ClientCollectionType.BroadcastActionAdded.value.toString(), pkgName)
+                    }
+                }
+                "android.intent.action.PACKAGE_REMOVED" -> {
+                    if (intent.extras?.getBoolean("android.intent.extra.REPLACING") != true && booleanValue) {
+                        writeActionInfo(context, ClientCollectionType.BroadcastActionRemoved.value.toString(), pkgName)
+                    }
+                }
+                "android.intent.action.PACKAGE_REPLACED" -> {
+                    if (booleanValue) {
+                        writeActionInfo(context, ClientCollectionType.BroadcastActionReplaced.value.toString(), pkgName)
+                    }
+                }
+                "android.intent.action.PACKAGE_DATA_CLEARED" -> {
+                    if (booleanValue) {
+                        writeActionInfo(context, ClientCollectionType.BroadcastActionDataCleared.value.toString(), pkgName)
+                    }
+                }
+            }
+        } catch (th: Throwable) {
+        }
+    }
+
+    private fun writeActionInfo(context: Context, type: String, pkgName: String) {
+        if (pkgName.isEmpty() || type.isEmpty()) return
+        try {
+            if (CDataHelper.checkDataCollectionJobMutual(context, "12", 1L)) return
+            val item = DataCollectionItem()
+            item.content = "$type:$pkgName"
+            item.collectedAt = System.currentTimeMillis()
+            item.collectionType = ClientCollectionType.BroadcastAction
+            CollectionJob.writeItemToFile(context, item)
+        } catch (th: Throwable) {
+        }
+    }
+
+    @JvmStatic
+    @android.annotation.SuppressLint("UnspecifiedRegisterReceiverFlag")
+    fun start(context: Context) {
+        JobController.getInstance(context).schedulerJob()
+        try {
+            val receiver = BroadcastActionsReceiver(getIntentHandler())
+            val filter = getIntentFilter()
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                context.registerReceiver(receiver, filter)
+            }
+        } catch (th: Throwable) {
+            MyLog.e(th)
+        }
+    }
+}

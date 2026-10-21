@@ -1,0 +1,142 @@
+package io.github.magisk317.mipush.common.utils
+
+import android.content.Context
+import android.content.pm.ApplicationInfo
+import io.github.magisk317.mipush.testing.mockContext
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import java.io.File
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Test
+
+class UtilsRegSecTest {
+
+    @AfterEach
+    fun tearDown() {
+        Utils.context = null
+    }
+
+    @Test
+    fun getRegSec_readsFromRegisteredPkgSecretsFirst() {
+        Utils.context = mockContext(
+            "pref_registered_pkg_names_sec" to mapOf("com.example.app" to "sec-primary"),
+            "mipush_apps_scrt" to mapOf("com.example.app" to "sec-secondary")
+        )
+
+        assertEquals("sec-primary", Utils.getRegSec("com.example.app", userId = 0))
+    }
+
+    @Test
+    fun getRegSec_fallsBackToMipushAppsSecret() {
+        Utils.context = mockContext(
+            "mipush_apps_scrt" to mapOf("com.example.app" to "sec-app-table")
+        )
+
+        assertEquals("sec-app-table", Utils.getRegSec("com.example.app", userId = 0))
+    }
+
+    @Test
+    fun getRegSec_fallsBackToMipushPrefs() {
+        Utils.context = mockContext(
+            "mipush" to mapOf("com.example.app" to "sec-global")
+        )
+
+        assertEquals("sec-global", Utils.getRegSec("com.example.app", userId = 0))
+    }
+
+    @Test
+    fun getRegSec_returnsNullWhenMissingEverywhere() {
+        Utils.context = mockContext()
+
+        assertNull(Utils.getRegSec("com.example.app", userId = 0))
+    }
+
+    @Test
+    fun getRegSecs_deduplicatesAcrossSourcesInPriorityOrder() {
+        Utils.context = mockContext(
+            "pref_registered_pkg_names_sec" to mapOf("com.example.app" to "sec-primary"),
+            "mipush_apps_scrt" to mapOf("com.example.app" to "sec-primary"),
+            "mipush" to mapOf("com.example.app" to "sec-global")
+        )
+
+        assertEquals(
+            listOf("sec-primary", "sec-global"),
+            Utils.getRegSecs("com.example.app", userId = 0)
+        )
+    }
+
+    @Test
+    fun getRegSecs_doesNotReadPrimaryLegacyKeyForAnotherUser() {
+        Utils.context = mockContext(
+            "pref_registered_pkg_names_sec" to mapOf("com.example.app" to "sec-primary"),
+        )
+
+        assertEquals(emptyList<String>(), Utils.getRegSecs("com.example.app", userId = 999))
+    }
+
+    @Test
+    fun getRegSecs_migratesPrimaryLegacyKeyIntoScopedKey() {
+        val context = mockContext(
+            "pref_registered_pkg_names_sec" to mapOf("com.example.app" to "sec-primary"),
+        )
+        Utils.context = context
+
+        assertEquals(listOf("sec-primary"), Utils.getRegSecs("com.example.app", userId = 0))
+        assertEquals(
+            "sec-primary",
+            context.getSharedPreferences("pref_registered_pkg_names_sec", 0)
+                .getString("0:com.example.app", null),
+        )
+    }
+
+    @Test
+    fun getRegSecs_skipsTargetPreferencesWhenFileIsMissing() {
+        val appContext = mockContext()
+        val packageContext = mockk<Context>(relaxed = true)
+        val missingDataDir = File.createTempFile("missing-app-data", ".dir").also { it.delete() }
+        val applicationInfo = ApplicationInfo().apply { dataDir = missingDataDir.absolutePath }
+        every { appContext.createPackageContext("com.example.app", 0) } returns packageContext
+        every { packageContext.applicationInfo } returns applicationInfo
+        Utils.context = appContext
+
+        assertEquals(emptyList<String>(), Utils.getRegSecs("com.example.app", userId = 0))
+        verify(exactly = 0) { packageContext.getSharedPreferences("mipush", 0) }
+    }
+
+    @Test
+    fun lastReceiveTime_staysIsolatedBetweenUsers() {
+        Utils.context = mockContext()
+
+        Utils.setLastReceiveTime("com.example.app", 11L, userId = 999)
+        assertEquals(11L, Utils.getLastReceiveTime("com.example.app", userId = 999))
+        assertNull(Utils.getLastReceiveTime("com.example.app", userId = 0))
+
+        Utils.setLastReceiveTime("com.example.app", 22L, userId = 0)
+        assertEquals(11L, Utils.getLastReceiveTime("com.example.app", userId = 999))
+        assertEquals(22L, Utils.getLastReceiveTime("com.example.app", userId = 0))
+
+        Utils.removeLastReceiveTime("com.example.app", userId = 999)
+        assertNull(Utils.getLastReceiveTime("com.example.app", userId = 999))
+        assertEquals(22L, Utils.getLastReceiveTime("com.example.app", userId = 0))
+    }
+
+    @Test
+    fun removePackagePushState_clearsSecretsAndLastReceiveTime() {
+        Utils.context = mockContext(
+            "pref_registered_pkg_names_sec" to mapOf("com.example.app" to "sec-primary"),
+            "mipush_apps_scrt" to mapOf("com.example.app" to "sec-secondary"),
+            "mipush" to mapOf("com.example.app" to "sec-global"),
+            "last_receive_time" to mapOf("com.example.app" to 1234L),
+        )
+
+        Utils.removeRegSec("com.example.app", userId = 0)
+        Utils.removeLastReceiveTime("com.example.app", userId = 0)
+
+        assertNull(Utils.getRegSec("com.example.app", userId = 0))
+        assertNull(Utils.getLastReceiveTime("com.example.app", userId = 0))
+    }
+
+}

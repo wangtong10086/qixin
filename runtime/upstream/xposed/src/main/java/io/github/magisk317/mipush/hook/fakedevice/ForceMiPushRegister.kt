@@ -1,0 +1,579 @@
+package io.github.magisk317.mipush.hook.fakedevice
+
+import android.app.Application
+import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
+import io.github.magisk317.xposed.LoadParam
+import io.github.magisk317.xposed.logging.XLog
+import io.github.magisk317.mipush.hook.fakedevice.compat.ModuleCompatProfile
+import io.github.magisk317.mipush.hook.fakedevice.compat.ModuleCredentialResolver
+import io.github.magisk317.mipush.hook.fakedevice.compat.ModuleCompatRegistry
+import io.github.magisk317.mipush.hook.fakedevice.compat.ModuleProcessPolicy
+import io.github.magisk317.xposed.callStaticMethod
+import io.github.magisk317.xposed.currentApplication
+import io.github.magisk317.xposed.findClass
+import io.github.magisk317.xposed.hookAllMethods
+import io.github.magisk317.xposed.hookMethod
+import io.github.magisk317.xposed.logging.MagiskOtel
+import java.util.Collections
+
+object ForceMiPushRegister {
+    private const val TAG = "ForceMiPushRegister"
+    private const val RETRY_DELAY_MS = 3000L
+    private const val MAX_RETRY_COUNT = 8
+    private const val CLOUD_PUSH_RETRY_COOLDOWN_MS = 5_000L
+    private val REGID_RETRY_DELAYS_MS = longArrayOf(2000L, 6000L, 15_000L, 30_000L)
+
+    private val triedPackages: MutableSet<String> = Collections.synchronizedSet(HashSet())
+    private val tracedPackages: MutableSet<String> = Collections.synchronizedSet(HashSet())
+    private val retryCounts: MutableMap<String, Int> = Collections.synchronizedMap(HashMap())
+    private val regIdRetryCounts: MutableMap<String, Int> = Collections.synchronizedMap(HashMap())
+    private val cloudPushRetryElapsedMs: MutableMap<String, Long> = Collections.synchronizedMap(HashMap())
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val scheduledTasks: MutableSet<Runnable> = Collections.synchronizedSet(HashSet())
+
+    @Volatile
+    private var lifecycleGeneration = 0L
+
+    /** Release delayed callbacks and per-loader state before libxposed swaps the module loader. */
+    fun resetForHotReload() {
+        lifecycleGeneration += 1
+        synchronized(scheduledTasks) {
+            scheduledTasks.forEach(mainHandler::removeCallbacks)
+            scheduledTasks.clear()
+        }
+        triedPackages.clear()
+        tracedPackages.clear()
+        retryCounts.clear()
+        regIdRetryCounts.clear()
+        cloudPushRetryElapsedMs.clear()
+    }
+
+    fun hook(lpparam: LoadParam, profile: ModuleCompatProfile) {
+        val packageName = lpparam.packageName
+        val processName = lpparam.processName
+        if (!ModuleProcessPolicy.shouldHandleProcess(profile, packageName, processName)) return
+
+        Application::class.java.hookMethod("onCreate") {
+            doAfter {
+                val app = thisObject as? Application ?: return@doAfter
+                hookFromRuntime(
+                    packageName = packageName,
+                    processName = processName,
+                    classLoader = lpparam.classLoader,
+                    application = app,
+                    profile = profile,
+                )
+            }
+        }
+    }
+
+    fun hookFromRuntime(
+        packageName: String,
+        processName: String,
+        classLoader: ClassLoader,
+        application: Application,
+        profile: ModuleCompatProfile? = ModuleCompatRegistry.resolveProfile(packageName, processName, classLoader),
+    ) {
+        if (!ModuleProcessPolicy.shouldHandleProcess(profile, packageName, processName)) return
+        hookXiaomiPushChannelStart(packageName, classLoader)
+        traceRegisterCalls(packageName, classLoader)
+        tryRegister(application, packageName, processName, classLoader)
+    }
+
+    fun nudgeAfterCloudPushHandshake(
+        packageName: String,
+        processName: String,
+        classLoader: ClassLoader
+    ) {
+        val profile = ModuleCompatRegistry.resolveProfile(packageName, processName, classLoader)
+        if (!ModuleProcessPolicy.shouldHandleProcess(profile, packageName, processName)) return
+        val processKey = "$packageName@$processName"
+        val now = SystemClock.elapsedRealtime()
+        val lastRetryAt = cloudPushRetryElapsedMs[processKey] ?: 0L
+        if (now - lastRetryAt < CLOUD_PUSH_RETRY_COOLDOWN_MS) {
+            XLog.d(
+                TAG,
+                "skip cloudpush register retry for $packageName in process=$processName " +
+                    "cooldownRemaining=${CLOUD_PUSH_RETRY_COOLDOWN_MS - (now - lastRetryAt)}ms"
+            )
+            return
+        }
+        val app = currentApplication() ?: run {
+            XLog.w(TAG, "skip cloudpush register retry: currentApplication unavailable for $packageName in process=$processName")
+            return
+        }
+        val classMiPushClient = runCatching {
+            classLoader.findClass("com.xiaomi.mipush.sdk.MiPushClient")
+        }.getOrNull()
+        val currentRegId = classMiPushClient?.let {
+            readRegId(it, app.applicationContext)
+        }.orEmpty()
+        if (currentRegId.isNotBlank()) {
+            markRegistered(processKey)
+            XLog.i(
+                TAG,
+                "skip cloudpush register retry for $packageName in process=$processName, " +
+                    "regId already available=${currentRegId.take(24)}"
+            )
+            return
+        }
+        cloudPushRetryElapsedMs[processKey] = now
+        triedPackages.remove(processKey)
+        retryCounts.remove(processKey)
+        XLog.i(TAG, "cloudpush handshake detected, retry register for $packageName in process=$processName")
+        traceRegisterCalls(packageName, classLoader)
+        tryRegister(app, packageName, processName, classLoader)
+    }
+
+    private fun tryRegister(
+        app: Application,
+        packageName: String,
+        processName: String,
+        classLoader: ClassLoader
+    ) {
+        val processKey = "$packageName@$processName"
+        if (triedPackages.contains(processKey)) {
+            return
+        }
+
+        val classMiPushClient = try {
+            classLoader.findClass("com.xiaomi.mipush.sdk.MiPushClient")
+        } catch (_: Throwable) {
+            XLog.d(TAG, "MiPushClient not found for $packageName in process=$processName")
+            scheduleRetry(app, packageName, processName)
+            emitForceRegister(
+                result = "skip",
+                reason = "client_missing",
+                packageName = packageName,
+                retry = true,
+            )
+            return
+        }
+
+        val credential = ModuleCredentialResolver.resolve(app, packageName)
+        if (credential == null) {
+            XLog.d(TAG, "meta-data appId/appKey not found for $packageName, skip force register")
+            triedPackages.add(processKey)
+            emitForceRegister(
+                result = "skip",
+                reason = "credential_missing",
+                packageName = packageName,
+            )
+            return
+        }
+
+        try {
+            val appContext = app.applicationContext
+            val existingRegId = readRegId(classMiPushClient, appContext)
+            if (existingRegId.isNotBlank()) {
+                markRegistered(processKey)
+                XLog.i(
+                    TAG,
+                    "skip force register for $packageName in process=$processName, " +
+                        "regId already available=${existingRegId.take(24)}"
+                )
+                emitForceRegister(
+                    result = "skip",
+                    reason = "regid_present",
+                    packageName = packageName,
+                )
+                return
+            }
+            if (regIdRetryCounts.containsKey(processKey)) {
+                XLog.d(TAG, "skip force register for $packageName in process=$processName, regId check already scheduled")
+                emitForceRegister(
+                    result = "skip",
+                    reason = "regid_check_pending",
+                    packageName = packageName,
+                    retry = true,
+                )
+                return
+            }
+            classMiPushClient.callStaticMethod(
+                "registerPush",
+                appContext,
+                credential.appId,
+                credential.appKey
+            )
+            val regId = readRegId(classMiPushClient, appContext)
+            XLog.i(
+                TAG,
+                "forced registerPush for $packageName in process=$processName, appId=${credential.appId.take(12)}..., regId=${regId.take(24)}"
+            )
+            if (regId.isNotBlank()) {
+                markRegistered(processKey)
+                emitForceRegister(
+                    result = "ok",
+                    reason = "register_push",
+                    packageName = packageName,
+                )
+            } else {
+                scheduleRegIdCheck(app, packageName, processName, classMiPushClient, appContext)
+                emitForceRegister(
+                    result = "ok",
+                    reason = "register_push_pending_regid",
+                    packageName = packageName,
+                    retry = true,
+                )
+            }
+        } catch (e: Throwable) {
+            XLog.e(TAG, "force registerPush failed for $packageName in process=$processName", e)
+            triedPackages.add(processKey)
+            emitForceRegister(
+                result = "error",
+                reason = "register_push_failed",
+                packageName = packageName,
+                errorClass = e.javaClass.simpleName,
+                statusOk = false,
+            )
+        }
+    }
+
+    private fun emitForceRegister(
+        result: String,
+        reason: String,
+        packageName: String,
+        retry: Boolean = false,
+        errorClass: String? = null,
+        statusOk: Boolean = true,
+    ) {
+        val attrs = mutableMapOf(
+            "result" to result,
+            "duration_ms" to "0",
+            "process" to "hook",
+            "stage" to "force",
+            "reason" to reason,
+            "target_package" to packageName,
+            "retry" to retry.toString(),
+        )
+        if (!errorClass.isNullOrBlank()) {
+            attrs["error_class"] = errorClass
+        }
+        MagiskOtel.event(name = "push.register", attributes = attrs, statusOk = statusOk)
+    }
+
+    private fun traceRegisterCalls(packageName: String, classLoader: ClassLoader) {
+        if (!tracedPackages.add(packageName)) {
+            return
+        }
+
+        try {
+            val classMiPushClient = classLoader.findClass("com.xiaomi.mipush.sdk.MiPushClient")
+            classMiPushClient.hookAllMethods("registerPush") {
+                doBefore {
+                    XLog.v(TAG, "MiPushClient.registerPush before: pkg=$packageName, args=${safeArgs(args)}")
+                }
+                doAfter {
+                    if (throwable != null) {
+                        XLog.e(TAG, "MiPushClient.registerPush after throwable for $packageName", throwable)
+                    } else {
+                        XLog.v(TAG, "MiPushClient.registerPush after: pkg=$packageName")
+                    }
+                }
+            }
+            classMiPushClient.hookAllMethods("initialize") {
+                doBefore {
+                    XLog.v(TAG, "MiPushClient.initialize before: pkg=$packageName, args=${safeArgs(args)}")
+                }
+                doAfter {
+                    if (throwable != null) {
+                        XLog.e(TAG, "MiPushClient.initialize after throwable for $packageName", throwable)
+                    } else {
+                        XLog.v(TAG, "MiPushClient.initialize after: pkg=$packageName")
+                    }
+                }
+            }
+            classMiPushClient.hookAllMethods("getRegId") {
+                doAfter {
+                    val regId = (result as? String).orEmpty()
+                    XLog.v(TAG, "MiPushClient.getRegId after: pkg=$packageName, regId=${regId.take(24)}")
+                }
+            }
+        } catch (_: Throwable) {
+        }
+
+        traceAliBridge(packageName, classLoader)
+        traceAccsBridge(packageName, classLoader)
+        traceUmengBridge(packageName, classLoader)
+        traceJPushBridge(packageName, classLoader)
+    }
+
+    private fun hookXiaomiPushChannelStart(packageName: String, classLoader: ClassLoader) {
+        val clazz = try {
+            classLoader.findClass("com.alibaba.laiwang.xpn.xiaomi.XiaomiPushChannel")
+        } catch (_: ClassNotFoundException) {
+            // XiaomiPushChannel is an optional Alibaba extension; absence is expected for most apps.
+            return
+        } catch (_: LinkageError) {
+            // An optional extension can also be unavailable because one of its dependencies is missing.
+            return
+        }
+        runCatching {
+            clazz.hookAllMethods("start") {
+                doBefore {
+                    val appId = args.getOrNull(0) as? String
+                    val appKey = args.getOrNull(1) as? String
+                    XLog.i(
+                        TAG,
+                        "XiaomiPushChannel.start intercepted: pkg=$packageName, " +
+                            "appId=${appId.orEmpty()}, appKey=${appKey.orEmpty()}"
+                    )
+                }
+            }
+            XLog.i(TAG, "hooked XiaomiPushChannel.start for $packageName")
+        }.onFailure {
+            XLog.e(TAG, "XiaomiPushChannel.start hook failed for $packageName", it)
+        }
+    }
+
+    private fun traceAliBridge(packageName: String, classLoader: ClassLoader) {
+        val classNames = listOf(
+            "com.alibaba.sdk.android.push.channel.XiaomiPushUtils",
+            "com.alipay.pushsdk.thirdparty.xiaomi.XiaoMIPushWorker"
+        )
+        val methodNames = listOf(
+            "isMiui",
+            "isSupport",
+            "register",
+            "registerPush",
+            "turnOnPush",
+            "enablePush"
+        )
+        classNames.forEach { className ->
+            val clazz = runCatching { classLoader.findClass(className) }.getOrNull() ?: return@forEach
+            methodNames.forEach { methodName ->
+                val exists = runCatching { clazz.declaredMethods.any { it.name == methodName } }.getOrDefault(false)
+                if (!exists) return@forEach
+                runCatching {
+                    clazz.hookAllMethods(methodName) {
+                        doBefore {
+                            XLog.v(TAG, "$className.$methodName before: pkg=$packageName, args=${safeArgs(args)}")
+                        }
+                        doAfter {
+                            if (throwable != null) {
+                                XLog.e(TAG, "$className.$methodName throwable for $packageName", throwable)
+                            } else {
+                                XLog.v(TAG, "$className.$methodName after: pkg=$packageName, result=${safeValue(result)}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Hook XiaomiPushChannel.start() to capture MiPush appId/appKey
+        hookXiaomiPushChannelStart(packageName, classLoader)
+    }
+
+    private fun traceAccsBridge(packageName: String, classLoader: ClassLoader) {
+        val classNames = listOf(
+            "com.taobao.accs.EventReceiver",
+            "com.taobao.accs.ServiceReceiver",
+            "com.taobao.accs.ChannelService",
+            "com.taobao.accs.data.MsgDistributeService",
+            "org.android.agoo.accs.AgooService",
+            "com.aliyun.ams.emas.push.MsgService",
+            "com.aliyun.ams.emas.push.AgooInnerService",
+            "com.alibaba.sdk.android.push.MiPushBroadcastReceiver"
+        )
+        val methodNames = listOf(
+            "onCreate",
+            "onStartCommand",
+            "onHandleIntent",
+            "onReceive",
+            "register",
+            "registerPush",
+            "turnOnPush",
+            "init"
+        )
+        classNames.forEach { className ->
+            val clazz = runCatching { classLoader.findClass(className) }.getOrNull() ?: return@forEach
+            methodNames.forEach { methodName ->
+                val exists = runCatching { clazz.declaredMethods.any { it.name == methodName } }.getOrDefault(false)
+                if (!exists) return@forEach
+                runCatching {
+                    clazz.hookAllMethods(methodName) {
+                        doBefore {
+                            XLog.v(TAG, "$className.$methodName before: pkg=$packageName, args=${safeArgs(args)}")
+                        }
+                        doAfter {
+                            if (throwable != null) {
+                                XLog.e(TAG, "$className.$methodName throwable for $packageName", throwable)
+                            } else {
+                                XLog.v(TAG, "$className.$methodName after: pkg=$packageName, result=${safeValue(result)}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun traceUmengBridge(packageName: String, classLoader: ClassLoader) {
+        val classNames = listOf(
+            "com.umeng.message.PushAgent",
+            "com.umeng.message.UmengRegistrar",
+            "com.umeng.message.XiaomiIntentService",
+            "com.umeng.message.UmengMessageCallbackHandlerService",
+            "com.umeng.message.UmengIntentService",
+            "org.android.agoo.xiaomi.MiPushRegistar",
+        )
+        val methodNames = listOf(
+            "register",
+            "onCreate",
+            "onHandleIntent",
+            "onMessage",
+            "onReceive",
+            "getRegistrationId",
+            "getToken",
+            "enable",
+        )
+        traceBridgeMethods(packageName, classLoader, classNames, methodNames)
+    }
+
+    private fun traceJPushBridge(packageName: String, classLoader: ClassLoader) {
+        val classNames = listOf(
+            "cn.jpush.android.api.JPushInterface",
+            "cn.jpush.android.thirdpush.xiaomi.XMPushManager",
+            "cn.jpush.android.service.PluginXiaomiPlatformsReceiver",
+            "cn.jpush.android.service.PluginVivoMessageReceiver",
+            "cn.jpush.android.service.PluginMeizuPlatformsReceiver",
+        )
+        val methodNames = listOf(
+            "init",
+            "register",
+            "resumePush",
+            "stopPush",
+            "setAlias",
+            "setTags",
+            "getRegistrationID",
+            "onReceive",
+            "onCommandResult",
+        )
+        traceBridgeMethods(packageName, classLoader, classNames, methodNames)
+    }
+
+    private fun traceBridgeMethods(
+        packageName: String,
+        classLoader: ClassLoader,
+        classNames: List<String>,
+        methodNames: List<String>,
+    ) {
+        classNames.forEach { className ->
+            val clazz = runCatching { classLoader.findClass(className) }.getOrNull() ?: return@forEach
+            methodNames.forEach { methodName ->
+                val exists = runCatching { clazz.declaredMethods.any { it.name == methodName } }.getOrDefault(false)
+                if (!exists) return@forEach
+                runCatching {
+                    clazz.hookAllMethods(methodName) {
+                        doBefore {
+                            XLog.v(TAG, "$className.$methodName before: pkg=$packageName, args=${safeArgs(args)}")
+                        }
+                        doAfter {
+                            if (throwable != null) {
+                                XLog.e(TAG, "$className.$methodName throwable for $packageName", throwable)
+                            } else {
+                                XLog.v(TAG, "$className.$methodName after: pkg=$packageName, result=${safeValue(result)}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun safeArgs(args: Array<Any?>): String {
+        return args.joinToString(prefix = "[", postfix = "]") { safeValue(it) }
+    }
+
+    private fun safeValue(value: Any?): String {
+        return VendorPushHookHelper.sanitizeForLog(value)
+    }
+
+    private fun scheduleRetry(app: Application, packageName: String, processName: String) {
+        val processKey = "$packageName@$processName"
+        val next = (retryCounts[processKey] ?: 0) + 1
+        if (next > MAX_RETRY_COUNT) {
+            triedPackages.add(processKey)
+            XLog.w(TAG, "retry exhausted for $packageName in process=$processName")
+            return
+        }
+        retryCounts[processKey] = next
+        val generation = lifecycleGeneration
+        postTracked(RETRY_DELAY_MS, generation) {
+            if (!triedPackages.contains(processKey)) {
+                hookFromRuntime(
+                    packageName = packageName,
+                    processName = processName,
+                    classLoader = app.classLoader ?: return@postTracked,
+                    application = app
+                )
+            }
+        }
+        XLog.d(TAG, "scheduled retry#$next for $packageName in process=$processName")
+    }
+
+    private fun scheduleRegIdCheck(
+        app: Application,
+        packageName: String,
+        processName: String,
+        classMiPushClient: Class<*>,
+        appContext: Context
+    ) {
+        val processKey = "$packageName@$processName"
+        val nextIndex = (regIdRetryCounts[processKey] ?: 0)
+        if (nextIndex >= REGID_RETRY_DELAYS_MS.size) {
+            triedPackages.add(processKey)
+            XLog.w(TAG, "regId still empty after ${REGID_RETRY_DELAYS_MS.size} checks for $packageName in process=$processName")
+            return
+        }
+        val delay = REGID_RETRY_DELAYS_MS[nextIndex]
+        regIdRetryCounts[processKey] = nextIndex + 1
+        val generation = lifecycleGeneration
+        postTracked(delay, generation) {
+            if (triedPackages.contains(processKey)) {
+                return@postTracked
+            }
+            val regId = readRegId(classMiPushClient, appContext)
+            if (regId.isNotBlank()) {
+                XLog.i(
+                    TAG,
+                    "regId available for $packageName in process=$processName, regId=${regId.take(24)}"
+                )
+                markRegistered(processKey)
+            } else {
+                scheduleRegIdCheck(app, packageName, processName, classMiPushClient, appContext)
+            }
+        }
+        XLog.d(TAG, "scheduled regId check#${nextIndex + 1} for $packageName in process=$processName after ${delay}ms")
+    }
+
+    private fun postTracked(delayMs: Long, generation: Long, action: () -> Unit) {
+        lateinit var task: Runnable
+        task = Runnable {
+            scheduledTasks.remove(task)
+            if (generation != lifecycleGeneration) return@Runnable
+            action()
+        }
+        scheduledTasks.add(task)
+        if (!mainHandler.postDelayed(task, delayMs)) {
+            scheduledTasks.remove(task)
+        }
+    }
+
+    private fun readRegId(classMiPushClient: Class<*>, appContext: Context): String {
+        return runCatching {
+            classMiPushClient.callStaticMethod("getRegId", appContext) as? String
+        }.getOrNull().orEmpty()
+    }
+
+    private fun markRegistered(processKey: String) {
+        triedPackages.add(processKey)
+        retryCounts.remove(processKey)
+        regIdRetryCounts.remove(processKey)
+    }
+
+}

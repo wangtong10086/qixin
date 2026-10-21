@@ -1,0 +1,13 @@
+# Reviewed upstream test fixtures and pinned local HTTP response fixture.
+# See docs/repository-audit.md. Exact file/rule/line exceptions only.
+runtime/upstream/magisk-xposed-kit/logging/src/test/java/io/github/magisk317/xposed/logging/LogSanitizerTest.kt:generic-api-key:18
+runtime/upstream/magisk-xposed-kit/logging/src/test/java/io/github/magisk317/xposed/logging/LogSanitizerTest.kt:generic-api-key:61
+runtime/upstream/magisk-xposed-kit/logging/src/test/java/io/github/magisk317/xposed/logging/LogSanitizerTest.kt:generic-api-key:61
+runtime/upstream/magisk-xposed-kit/logging/src/test/java/io/github/magisk317/xposed/logging/LogSanitizerTest.kt:generic-api-key:64
+runtime/upstream/magisk-xposed-kit/logging/src/test/java/io/github/magisk317/xposed/logging/LogSanitizerTest.kt:generic-api-key:74
+runtime/upstream/magisk-xposed-kit/logging/src/test/java/io/github/magisk317/xposed/logging/LogSanitizerTest.kt:generic-api-key:78
+runtime/upstream/magisk-xposed-kit/logging/src/test/java/io/github/magisk317/xposed/logging/MagiskOtelTest.kt:generic-api-key:219
+runtime/upstream/xmsf/shell/src/main/java/com/xiaomi/xmsf/push/service/HttpService.kt:generic-api-key:80
+runtime/upstream/xmsf/shell/src/test/java/com/xiaomi/xmsf/utils/ConvertUtilsTest.kt:generic-api-key:41
+runtime/upstream/xposed/src/test/java/io/github/magisk317/mipush/hook/fakedevice/VendorPushHookHelperTest.kt:generic-api-key:70
+runtime/upstream/xposed/src/test/java/io/github/magisk317/mipush/hook/fakedevice/compat/ModuleCredentialResolverTest.kt:generic-api-key:21

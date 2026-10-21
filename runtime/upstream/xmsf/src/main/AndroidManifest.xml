@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
+
+    <application
+            android:name="com.xiaomi.xmsf.app.MiPushHostApp"
+            android:label="栖信推送运行时"
+            android:hasFragileUserData="true"
+            tools:targetApi="q"
+            tools:replace="android:name,android:label">
+    </application>
+</manifest>

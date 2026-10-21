@@ -1,0 +1,787 @@
+package io.github.magisk317.mipush.runtime.android
+
+import android.content.Context
+import android.content.Intent
+import io.github.magisk317.mipush.runtime.core.PushChannelRecord
+import io.github.magisk317.mipush.runtime.core.PushChannelState
+import io.github.magisk317.mipush.runtime.core.PushConnectionState
+import io.github.magisk317.mipush.runtime.core.PushRegistrationState
+import io.github.magisk317.mipush.runtime.core.PushRuntimeApplicationDispatchResult
+import io.github.magisk317.mipush.runtime.core.PushRuntimeCapability
+import io.github.magisk317.mipush.runtime.store.kmp.RegisteredAppRegisteredType
+import io.github.magisk317.mipush.runtime.store.kmp.RuntimeRegisteredApplicationRow
+import io.github.magisk317.mipush.runtime.core.PushRuntimeExecutionHost
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import io.github.magisk317.mipush.runtime.android.applyPersistedRegistrationState
+import io.github.magisk317.mipush.runtime.android.channelIdentity
+import io.github.magisk317.mipush.runtime.android.forceTriggerRegistration
+import io.github.magisk317.mipush.runtime.android.getChannelRecords
+import io.github.magisk317.mipush.runtime.android.getRegistrationRecord
+import io.github.magisk317.mipush.runtime.android.observeChannelState
+import io.github.magisk317.mipush.runtime.android.observeConnectionState
+import io.github.magisk317.mipush.runtime.android.observeInboundMessage
+import io.github.magisk317.mipush.runtime.android.observeRegistrationRequest
+import io.github.magisk317.mipush.runtime.android.observeRegistrationResult
+import io.github.magisk317.mipush.runtime.android.synchronizeChannels
+
+class PushRuntimeTest {
+    @Test
+    fun `network available dispatches register task and pending app replays`() {
+        AndroidPushRuntime.clearStateForTests()
+        val host = TestExecutionHost()
+        AndroidPushRuntime.attachExecutionHost(host)
+        try {
+            AndroidPushRuntime.observeRegistrationRequest("com.example.pending", "test", androidUserId = 0)
+
+            val result = AndroidPushRuntime.handleNetworkAvailableForUser("test", androidUserId = 0)
+
+            assertTrue(result.processRegisterTaskTriggered)
+            assertTrue(result.frameworkRegistrationTriggered)
+            assertTrue(result.connectionEnsureTriggered)
+            assertEquals(1, result.pendingAppReplayCount)
+            assertEquals(1, host.frameworkRegistrationReasons.size)
+            assertEquals(1, host.processRegisterTaskReasons.size)
+            assertEquals(1, host.connectionEnsureReasons.size)
+            assertEquals(listOf("com.example.pending"), host.replayedPackages)
+        } finally {
+            AndroidPushRuntime.detachExecutionHost(host)
+        }
+    }
+
+    @Test
+    fun `network available skips framework registration when host disables self-registration`() {
+        AndroidPushRuntime.clearStateForTests()
+        val host = TestExecutionHost(frameworkRegistrationEnabled = false)
+        AndroidPushRuntime.attachExecutionHost(host)
+        try {
+            val result = AndroidPushRuntime.handleNetworkAvailableForUser("test", androidUserId = 0)
+
+            assertFalse(result.frameworkRegistrationTriggered)
+            assertTrue(result.connectionEnsureTriggered)
+            assertTrue(host.frameworkRegistrationReasons.isEmpty())
+            assertEquals(null, AndroidPushRuntime.snapshot().lastRegistrationPackage)
+        } finally {
+            AndroidPushRuntime.detachExecutionHost(host)
+        }
+    }
+
+    @Test
+    fun `network burst throttles only pending registration processing`() {
+        AndroidPushRuntime.clearStateForTests()
+        val host = TestExecutionHost()
+        AndroidPushRuntime.attachExecutionHost(host)
+        try {
+            val first = AndroidPushRuntime.handleNetworkAvailableForUser(
+                source = "first",
+                androidUserId = 0,
+                nowElapsedMs = 1_000L,
+            )
+            val second = AndroidPushRuntime.handleNetworkAvailableForUser(
+                source = "burst",
+                androidUserId = 0,
+                nowElapsedMs = 1_001L,
+            )
+
+            assertTrue(first.processRegisterTaskTriggered)
+            assertFalse(second.processRegisterTaskTriggered)
+            assertEquals(1, host.processRegisterTaskReasons.size)
+            assertEquals(2, host.frameworkRegistrationReasons.size)
+            assertEquals(2, host.connectionEnsureReasons.size)
+        } finally {
+            AndroidPushRuntime.detachExecutionHost(host)
+        }
+    }
+
+    @Test
+    fun `network registration throttle is scoped per Android user`() {
+        AndroidPushRuntime.clearStateForTests()
+        val host = TestExecutionHost()
+        AndroidPushRuntime.attachExecutionHost(host)
+        try {
+            val primary = AndroidPushRuntime.handleNetworkAvailableForUser(
+                source = "primary",
+                androidUserId = 0,
+                nowElapsedMs = 2_000L,
+            )
+            val cloned = AndroidPushRuntime.handleNetworkAvailableForUser(
+                source = "cloned",
+                androidUserId = 999,
+                nowElapsedMs = 2_001L,
+            )
+
+            assertTrue(primary.processRegisterTaskTriggered)
+            assertTrue(cloned.processRegisterTaskTriggered)
+            assertEquals(2, host.processRegisterTaskReasons.size)
+        } finally {
+            AndroidPushRuntime.detachExecutionHost(host)
+        }
+    }
+
+    @Test
+    fun `downstream dispatch and notification cancel update runtime counters`() {
+        AndroidPushRuntime.clearStateForTests()
+        val host = TestExecutionHost(
+            downstreamDispatchResult = PushRuntimeApplicationDispatchResult(
+                dispatched = true,
+                deliveredToService = false,
+                deliveredByBroadcastFallback = true
+            ),
+            cancelNotificationResult = true
+        )
+        AndroidPushRuntime.attachExecutionHost(host)
+        try {
+            val dispatch = AndroidPushRuntime.dispatchDownstreamPayload(
+                packageName = "com.example.app",
+                action = "SendMessage",
+                messageId = "msg-1",
+                payload = byteArrayOf(1, 2, 3),
+                source = "test",
+                launchApp = true,
+                notified = true,
+                androidUserId = 0,
+            )
+            val cancelled = AndroidPushRuntime.cancelNotificationForPayload(
+                packageName = "com.example.app",
+                payload = byteArrayOf(1, 2, 3),
+                notificationId = 7,
+                notificationGroup = "group",
+                source = "test"
+            )
+
+            val snapshot = AndroidPushRuntime.snapshot()
+            assertTrue(dispatch.dispatched)
+            assertTrue(cancelled)
+            assertEquals(1, snapshot.deliveredToAppCount)
+            assertEquals(1, snapshot.broadcastFallbackDeliveryCount)
+            assertEquals(1, snapshot.notificationCancelCount)
+            // The notified (click) marker must survive the facade -> runtime -> host chain.
+            assertTrue(host.downstreamDispatches.single().contains(":true:"))
+        } finally {
+            AndroidPushRuntime.detachExecutionHost(host)
+        }
+    }
+
+    @Test
+    fun `channel synchronization tracks bound channels and connection state`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        AndroidPushRuntime.observeChannelState(
+            packageName = "com.example.app",
+            channelId = "5",
+            userId = "u@example.com",
+            session = "s1",
+            state = PushChannelState.OpenFailed,
+            source = "test",
+            androidUserId = 0,
+        )
+        AndroidPushRuntime.synchronizeChannels(
+            connectionState = PushConnectionState.Connected,
+            host = "resolver.msg.xiaomi.net",
+            channels = listOf(
+                PushChannelRecord(
+                    packageName = "com.example.app",
+                    channelId = "5",
+                    userId = "u@example.com",
+                    session = "s1",
+                    state = PushChannelState.Bound,
+                    updatedAtMs = 1L,
+                    source = "seed"
+                ),
+                PushChannelRecord(
+                    packageName = "com.example.other",
+                    channelId = "9",
+                    userId = "other@example.com",
+                    session = "s2",
+                    state = PushChannelState.Binding,
+                    updatedAtMs = 1L,
+                    source = "seed"
+                )
+            ),
+            source = "test",
+            androidUserId = 0,
+        )
+
+        val snapshot = AndroidPushRuntime.snapshot()
+        val records = AndroidPushRuntime.getChannelRecords()
+
+        assertEquals(PushConnectionState.Connected, snapshot.connectionState)
+        assertEquals(2, snapshot.trackedChannelCount)
+        assertEquals(1, snapshot.boundChannelCount)
+        assertTrue(records.any { it.packageName == "com.example.app" && it.state == PushChannelState.Bound })
+        assertTrue(records.any { it.packageName == "com.example.other" && it.state == PushChannelState.Binding })
+    }
+
+    @Test
+    fun `channel synchronization corrects stale connection state without double counting sessions`() {
+        AndroidPushRuntime.clearStateForTests()
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Disconnected,
+            source = "stale",
+            nowMs = 100L,
+        )
+
+        AndroidPushRuntime.synchronizeChannels(
+            connectionState = PushConnectionState.Connected,
+            host = "resolver.msg.xiaomi.net",
+            channels = emptyList(),
+            source = "sync",
+            nowMs = 200L,
+            androidUserId = 0,
+        )
+        AndroidPushRuntime.synchronizeChannels(
+            connectionState = PushConnectionState.Connected,
+            host = "resolver.msg.xiaomi.net",
+            channels = emptyList(),
+            source = "sync-again",
+            nowMs = 300L,
+            androidUserId = 0,
+        )
+
+        val connected = AndroidPushRuntime.connectionSnapshot()
+        assertEquals("Connected", connected.connectionState)
+        assertEquals(200L, connected.connectedAtMs)
+        assertEquals(1L, connected.connectionSessionCount)
+
+        AndroidPushRuntime.synchronizeChannels(
+            connectionState = PushConnectionState.Disconnected,
+            host = null,
+            channels = emptyList(),
+            source = "disconnect",
+            nowMs = 400L,
+            androidUserId = 0,
+        )
+        AndroidPushRuntime.synchronizeChannels(
+            connectionState = PushConnectionState.Disconnected,
+            host = null,
+            channels = emptyList(),
+            source = "disconnect-again",
+            nowMs = 500L,
+            androidUserId = 0,
+        )
+
+        val disconnected = AndroidPushRuntime.connectionSnapshot()
+        assertEquals("Disconnected", disconnected.connectionState)
+        assertEquals(400L, disconnected.lastDisconnectedAtMs)
+        assertEquals(1L, disconnected.connectionSessionCount)
+    }
+
+    @Test
+    fun `duplicate connected notifications do not create or restart a session`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connected,
+            source = "connected-first",
+            nowMs = 100L,
+        )
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connected,
+            source = "connected-duplicate",
+            nowMs = 200L,
+        )
+
+        val snapshot = AndroidPushRuntime.connectionSnapshot()
+        assertEquals(1L, snapshot.connectionSessionCount)
+        assertEquals(100L, snapshot.connectedAtMs)
+    }
+
+    @Test
+    fun `short disconnect and reconnect stays in the same session`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connected,
+            source = "connected",
+            nowMs = 100L,
+        )
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Disconnected,
+            source = "disconnected",
+            nowMs = 200L,
+        )
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connecting,
+            source = "connecting",
+            nowMs = 250L,
+        )
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connected,
+            source = "reconnected",
+            nowMs = 300L,
+        )
+
+        val snapshot = AndroidPushRuntime.connectionSnapshot()
+        assertEquals(1L, snapshot.connectionSessionCount)
+        assertEquals(100L, snapshot.connectedAtMs)
+        assertEquals(200L, snapshot.lastDisconnectedAtMs)
+    }
+
+    @Test
+    fun `reconnect at the session merge boundary starts a new session`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connected,
+            source = "connected",
+            nowMs = 100L,
+        )
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Disconnected,
+            source = "disconnected",
+            nowMs = 200L,
+        )
+        val reconnectAtBoundary =
+            200L + io.github.magisk317.mipush.runtime.core.PushReconnectPolicy
+                .CONNECTION_SESSION_MERGE_WINDOW_MS
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connected,
+            source = "reconnected-at-boundary",
+            nowMs = reconnectAtBoundary,
+        )
+
+        val snapshot = AndroidPushRuntime.connectionSnapshot()
+        assertEquals(2L, snapshot.connectionSessionCount)
+        assertEquals(reconnectAtBoundary, snapshot.connectedAtMs)
+    }
+
+    @Test
+    fun `duplicate disconnected notifications do not extend the merge window`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connected,
+            source = "connected",
+            nowMs = 100L,
+        )
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Disconnected,
+            source = "disconnected-first",
+            nowMs = 200L,
+        )
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Disconnected,
+            source = "disconnected-duplicate",
+            nowMs = 300L,
+        )
+        val reconnectAtBoundary =
+            200L + io.github.magisk317.mipush.runtime.core.PushReconnectPolicy
+                .CONNECTION_SESSION_MERGE_WINDOW_MS
+        AndroidPushRuntime.observeConnectionState(
+            state = PushConnectionState.Connected,
+            source = "reconnected-after-long-outage",
+            nowMs = reconnectAtBoundary,
+        )
+
+        val snapshot = AndroidPushRuntime.connectionSnapshot()
+        assertEquals(2L, snapshot.connectionSessionCount)
+        assertEquals(reconnectAtBoundary, snapshot.connectedAtMs)
+        assertEquals(200L, snapshot.lastDisconnectedAtMs)
+    }
+
+    @Test
+    fun `registration state transitions are tracked in snapshot`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        AndroidPushRuntime.observeRegistrationRequest("com.example.app", "test", androidUserId = 0)
+        AndroidPushRuntime.observeRegistrationResult("com.example.app", success = true, source = "test", androidUserId = 0)
+
+        val snapshot = AndroidPushRuntime.snapshot()
+        val record = AndroidPushRuntime.getRegistrationRecord("com.example.app", androidUserId = 0)
+
+        assertEquals(1, snapshot.trackedRegistrationCount)
+        assertEquals(1, snapshot.registeredPackageCount)
+        assertEquals("com.example.app", snapshot.lastRegistrationPackage)
+        assertEquals(PushRegistrationState.Registered, snapshot.lastRegistrationState)
+        assertEquals(PushRegistrationState.Registered, record?.state)
+    }
+
+    @Test
+    fun `persisted terminal registration state is restored without creating pending records`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        val restored = AndroidPushRuntime.applyPersistedRegistrationState(
+            applications = listOf(
+                registeredApplication("com.example.registered", RegisteredAppRegisteredType.Registered, 0),
+                registeredApplication("com.example.unregistered", RegisteredAppRegisteredType.Unregistered, 0),
+                registeredApplication("com.example.pending", RegisteredAppRegisteredType.NotRegistered, 0),
+                registeredApplication("com.example.other-user", RegisteredAppRegisteredType.Registered, 999),
+            ),
+            androidUserId = 0,
+            nowMs = 1234L,
+        )
+
+        val snapshot = AndroidPushRuntime.snapshot()
+        assertEquals(2, restored)
+        assertEquals(2, snapshot.trackedRegistrationCount)
+        assertEquals(1, snapshot.registeredPackageCount)
+        assertEquals(PushRegistrationState.Registered, AndroidPushRuntime.getRegistrationRecord(
+            "com.example.registered",
+            androidUserId = 0,
+        )?.state)
+        assertEquals(PushRegistrationState.Unregistered, AndroidPushRuntime.getRegistrationRecord(
+            "com.example.unregistered",
+            androidUserId = 0,
+        )?.state)
+        assertEquals(null, AndroidPushRuntime.getRegistrationRecord("com.example.pending", androidUserId = 0))
+        assertEquals(null, AndroidPushRuntime.getRegistrationRecord("com.example.other-user", androidUserId = 0))
+
+        AndroidPushRuntime.applyPersistedRegistrationState(
+            applications = listOf(
+                registeredApplication("com.example.pending", RegisteredAppRegisteredType.NotRegistered, 0),
+            ),
+            androidUserId = 0,
+            nowMs = 2345L,
+        )
+        assertEquals(null, AndroidPushRuntime.getRegistrationRecord("com.example.registered", androidUserId = 0))
+        assertEquals(null, AndroidPushRuntime.getRegistrationRecord("com.example.unregistered", androidUserId = 0))
+    }
+
+    @Test
+    fun `persisted restore does not replace a live registration observation`() {
+        AndroidPushRuntime.clearStateForTests()
+        AndroidPushRuntime.observeRegistrationRequest("com.example.app", "live", androidUserId = 0)
+
+        AndroidPushRuntime.applyPersistedRegistrationState(
+            applications = listOf(
+                registeredApplication("com.example.app", RegisteredAppRegisteredType.Registered, 0),
+            ),
+            androidUserId = 0,
+            nowMs = 1234L,
+        )
+
+        assertEquals(
+            PushRegistrationState.Registering,
+            AndroidPushRuntime.getRegistrationRecord("com.example.app", androidUserId = 0)?.state,
+        )
+    }
+
+    @Test
+    fun `attachBridgeHost drains queued bridge intents`() {
+        AndroidPushRuntime.clearStateForTests()
+        val processedIntents = mutableListOf<Intent>()
+        val host = testHost(processedIntents)
+
+        AndroidPushRuntime.submitBridgeIntent(Intent("queued.first"))
+        AndroidPushRuntime.submitBridgeIntent(Intent("queued.second"))
+
+        val beforeAttach = AndroidPushRuntime.snapshot()
+        assertFalse(beforeAttach.bridgeReady)
+        assertFalse(beforeAttach.executionReady)
+        assertEquals(PushConnectionState.Idle, beforeAttach.connectionState)
+        assertEquals(2, beforeAttach.pendingBridgeIntentCount)
+
+        AndroidPushRuntime.attachBridgeHost(host)
+        try {
+            val afterAttach = AndroidPushRuntime.snapshot()
+            assertTrue(afterAttach.bridgeReady)
+            assertEquals(0, afterAttach.pendingBridgeIntentCount)
+            assertEquals(2, processedIntents.size)
+        } finally {
+            AndroidPushRuntime.detachBridgeHost(host)
+        }
+    }
+
+    @Test
+    fun `detachBridgeHost causes later bridge intents to be queued again`() {
+        AndroidPushRuntime.clearStateForTests()
+        val processedIntents = mutableListOf<Intent>()
+        val host = testHost(processedIntents)
+
+        AndroidPushRuntime.attachBridgeHost(host)
+        AndroidPushRuntime.submitBridgeIntent(Intent("live.intent"))
+        AndroidPushRuntime.detachBridgeHost(host)
+        AndroidPushRuntime.submitBridgeIntent(Intent("queued.after.detach"))
+
+        assertEquals(1, processedIntents.size)
+
+        val detachedSnapshot = AndroidPushRuntime.snapshot()
+        assertFalse(detachedSnapshot.bridgeReady)
+        assertEquals(1, detachedSnapshot.pendingBridgeIntentCount)
+
+        AndroidPushRuntime.attachBridgeHost(host)
+        try {
+            assertEquals(2, processedIntents.size)
+        } finally {
+            AndroidPushRuntime.detachBridgeHost(host)
+        }
+    }
+
+    @Test
+    fun `stale execution host detach cannot clear a newer host`() {
+        AndroidPushRuntime.clearStateForTests()
+        val first = TestExecutionHost()
+        val replacement = TestExecutionHost()
+
+        AndroidPushRuntime.attachExecutionHost(first)
+        AndroidPushRuntime.attachExecutionHost(replacement)
+        AndroidPushRuntime.detachExecutionHost(first)
+
+        assertTrue(AndroidPushRuntime.snapshot().executionReady)
+        assertTrue(AndroidPushRuntime.requestConnection("test", "replacement_still_attached"))
+        assertEquals(listOf("test:replacement_still_attached"), replacement.connectionEnsureReasons)
+
+        AndroidPushRuntime.detachExecutionHost(replacement)
+        assertFalse(AndroidPushRuntime.snapshot().executionReady)
+    }
+
+    @Test
+    fun `inbound dedupe increments duplicate and ack counters`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        assertTrue(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.app",
+                action = "SendMessage",
+                messageId = "id-1",
+                source = "test",
+                androidUserId = 0,
+            )
+        )
+        assertFalse(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.app",
+                action = "SendMessage",
+                messageId = "id-1",
+                source = "test",
+                androidUserId = 0,
+            )
+        )
+        assertTrue(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.app",
+                action = "AckMessage",
+                messageId = "ack-1",
+                source = "test",
+                isAck = true,
+                androidUserId = 0,
+            )
+        )
+
+        val snapshot = AndroidPushRuntime.snapshot()
+        assertEquals(2, snapshot.downstreamMessageCount)
+        assertEquals(1, snapshot.duplicateMessageCount)
+        assertEquals(1, snapshot.ackMessageCount)
+    }
+
+    @Test
+    fun `inbound dedupe does not share message ids between packages`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        assertTrue(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.one",
+                action = "SendMessage",
+                messageId = "shared-id",
+                source = "test",
+                androidUserId = 0,
+            )
+        )
+        assertTrue(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.two",
+                action = "SendMessage",
+                messageId = "shared-id",
+                source = "test",
+                androidUserId = 0,
+            )
+        )
+        assertFalse(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.one",
+                action = "SendMessage",
+                messageId = "shared-id",
+                source = "test",
+                androidUserId = 0,
+            )
+        )
+    }
+
+    @Test
+    fun `message id dedupe window remains active for sixty seconds`() {
+        AndroidPushRuntime.clearStateForTests()
+
+        assertTrue(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.app",
+                action = "SendMessage",
+                messageId = "id-window",
+                source = "test",
+                nowMs = 1_000L,
+                androidUserId = 0,
+            )
+        )
+        assertFalse(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.app",
+                action = "SendMessage",
+                messageId = "id-window",
+                source = "test",
+                nowMs = 31_000L,
+                androidUserId = 0,
+            )
+        )
+        assertTrue(
+            AndroidPushRuntime.observeInboundMessage(
+                packageName = "com.example.app",
+                action = "SendMessage",
+                messageId = "id-window",
+                source = "test",
+                nowMs = 92_000L,
+                androidUserId = 0,
+            )
+        )
+    }
+
+    @Test
+    fun `force trigger ignores reentrant application registration dispatch`() {
+        AndroidPushRuntime.clearStateForTests()
+        var nestedDispatchResult = true
+        val host = TestExecutionHost(
+            onApplicationRegistration = { packageName, _ ->
+                nestedDispatchResult = AndroidPushRuntime.forceTriggerRegistration(
+                    packageName,
+                    "test:nested",
+                    "reentrant",
+                    androidUserId = 0,
+                )
+                true
+            }
+        )
+        AndroidPushRuntime.attachExecutionHost(host)
+        try {
+            val dispatched = AndroidPushRuntime.forceTriggerRegistration(
+                "com.example.app",
+                "test",
+                "manual",
+                androidUserId = 0,
+            )
+
+            assertTrue(dispatched)
+            assertFalse(nestedDispatchResult)
+            assertEquals(listOf("com.example.app"), host.replayedPackages)
+        } finally {
+            AndroidPushRuntime.detachExecutionHost(host)
+        }
+    }
+
+    @Test
+    fun `capabilities expose runtime spine contract`() {
+        AndroidPushRuntime.clearStateForTests()
+        val capabilities = AndroidPushRuntime.capabilities()
+
+        assertEquals(3, capabilities.runtimeApiVersion)
+        assertTrue(capabilities.capabilities.contains(PushRuntimeCapability.BRIDGE_RUNTIME_SPINE))
+        assertTrue(capabilities.capabilities.contains(PushRuntimeCapability.LEGACY_MAIN_SERVICE_COMPONENT))
+        assertFalse(capabilities.capabilities.contains("local_legacy_compat_sourceset"))
+        assertTrue(capabilities.capabilities.contains(PushRuntimeCapability.REGISTRATION_RUNTIME))
+        assertTrue(capabilities.capabilities.contains(PushRuntimeCapability.DOWNSTREAM_MESSAGE_PIPELINE))
+        assertTrue(capabilities.capabilities.contains(PushRuntimeCapability.NOTIFICATION_POLICY_RUNTIME))
+        assertTrue(capabilities.capabilities.contains(PushRuntimeCapability.CHANNEL_LIFECYCLE_TRACKING))
+        assertTrue(capabilities.capabilities.contains(PushRuntimeCapability.CONNECTION_SESSION_RUNTIME))
+        assertTrue(capabilities.capabilities.contains(PushRuntimeCapability.STOCK_SURFACE_COMPATIBILITY))
+    }
+
+    @Test
+    fun `channel identity includes Android user`() {
+        val record = PushChannelRecord(
+            packageName = "com.example.app",
+            channelId = "channel",
+            userId = "xiaomi-user",
+            session = "session",
+            state = PushChannelState.Bound,
+            updatedAtMs = 1L,
+            source = "test",
+        )
+
+        assertFalse(
+            AndroidPushRuntime.channelIdentity(record, androidUserId = 0) ==
+                AndroidPushRuntime.channelIdentity(record, androidUserId = 999),
+        )
+    }
+
+    private fun testHost(processedIntents: MutableList<Intent>): PushRuntimeBridgeHost {
+        return object : PushRuntimeBridgeHost {
+            override val context: Context
+                get() = throw UnsupportedOperationException("Context is not used in AndroidPushRuntime unit tests")
+
+            override fun processBridgeIntent(intent: Intent) {
+                processedIntents += intent
+            }
+        }
+    }
+
+    private fun registeredApplication(packageName: String, registeredType: Int, userId: Int) =
+        RuntimeRegisteredApplicationRow(
+            packageName = packageName,
+            userId = userId,
+            type = 0,
+            notificationOnRegister = true,
+            registeredType = registeredType,
+            appName = packageName,
+        )
+
+    private class TestExecutionHost(
+        private val downstreamDispatchResult: PushRuntimeApplicationDispatchResult = PushRuntimeApplicationDispatchResult(),
+        private val cancelNotificationResult: Boolean = false,
+        private val onApplicationRegistration: ((String, String) -> Boolean)? = null,
+        private val frameworkRegistrationEnabled: Boolean = true,
+    ) : PushRuntimeExecutionHost {
+        val frameworkRegistrationReasons = mutableListOf<String>()
+        val replayedPackages = mutableListOf<String>()
+        val processRegisterTaskReasons = mutableListOf<String>()
+        val connectionEnsureReasons = mutableListOf<String>()
+        val connectionResetReasons = mutableListOf<String>()
+        val downstreamDispatches = mutableListOf<String>()
+        val cancellationRequests = mutableListOf<String>()
+
+        override fun isFrameworkRegistrationEnabled(): Boolean = frameworkRegistrationEnabled
+
+        override fun requestFrameworkRegistration(reason: String): Boolean {
+            frameworkRegistrationReasons += reason
+            return true
+        }
+
+        override fun requestApplicationRegistration(packageName: String, reason: String): Boolean {
+            replayedPackages += packageName
+            return onApplicationRegistration?.invoke(packageName, reason) ?: true
+        }
+
+        override fun processPendingRegisterTasks(reason: String): Boolean {
+            processRegisterTaskReasons += reason
+            return true
+        }
+
+        override fun dispatchDownstreamPayload(
+            payload: ByteArray,
+            source: String,
+            launchApp: Boolean,
+            notified: Boolean
+        ): PushRuntimeApplicationDispatchResult {
+            downstreamDispatches += "$source:$launchApp:$notified:${payload.size}"
+            return downstreamDispatchResult
+        }
+
+        override fun cancelNotificationForPayload(
+            payload: ByteArray,
+            notificationId: Int,
+            notificationGroup: String?,
+            source: String
+        ): Boolean {
+            cancellationRequests += "$source:$notificationId:${notificationGroup ?: ""}:${payload.size}"
+            return cancelNotificationResult
+        }
+
+        override fun ensureConnection(reason: String): Boolean {
+            connectionEnsureReasons += reason
+            return true
+        }
+
+        override fun resetConnection(reason: String): Boolean {
+            connectionResetReasons += reason
+            return true
+        }
+    }
+}

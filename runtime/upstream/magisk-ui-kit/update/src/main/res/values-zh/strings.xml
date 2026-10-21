@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="uikit_update_checking_title">检查更新</string>
+    <string name="uikit_update_checking_message">正在连接更新服务器，请稍候…</string>
+
+    <string name="uikit_update_dialog_title">发现新版本 (v%1$s)</string>
+    <string name="uikit_update_dialog_title_force">发现重要更新 (v%1$s)</string>
+    <string name="uikit_update_version_info">当前版本: v%1$s (%2$d)\n最新版本: v%3$s (%4$d)</string>
+    <string name="uikit_update_release_notes_label">更新说明：</string>
+    <string name="uikit_update_force_warning">⚠️ 当前构建版本属于 CI/调试版本，旧版本不提供支持与回溯，必须更新至最新版本方可继续使用。</string>
+    <string name="uikit_update_btn_update">立即更新</string>
+    <string name="uikit_update_btn_remind_later">稍后提醒</string>
+    <string name="uikit_update_btn_exit">退出应用</string>
+
+    <string name="uikit_update_downloading_title">正在下载更新...</string>
+    <string name="uikit_update_downloading_message">正在下载安装包...</string>
+
+    <string name="uikit_update_ready_title">安装包已准备就绪</string>
+    <string name="uikit_update_ready_message">新版本安装包已下载完成，点击立即进行安装。</string>
+    <string name="uikit_update_ready_message_force">最新安装包已下载完成，请立即完成安装以继续使用。</string>
+    <string name="uikit_update_btn_install">立即安装</string>
+
+    <string name="uikit_update_failed_title">更新检查失败</string>
+    <string name="uikit_update_btn_retry">重试</string>
+
+    <string name="uikit_update_latest_title">检查更新</string>
+    <string name="uikit_update_latest_message">当前已是最新版本，无需更新。</string>
+
+    <string name="uikit_update_err_no_source">未能连接到更新服务器或未发现有效更新</string>
+    <string name="uikit_update_err_cannot_create_dir">无法创建更新下载目录</string>
+    <string name="uikit_update_err_download_http">下载失败 (HTTP %1$d)</string>
+    <string name="uikit_update_err_save_failed">保存安装包失败</string>
+    <string name="uikit_update_err_md5_mismatch">安装包 MD5 校验失败</string>
+    <string name="uikit_update_err_network">下载网络异常</string>
+    <string name="uikit_update_err_uri_failed">无法获取安装包 URI: %1$s</string>
+    <string name="uikit_update_err_intent_failed">无法调起系统安装器，请手动安装 %1$s</string>
+    <string name="uikit_update_ci_notes_format">CI 自动化构建产物\nCommit: %1$s\n分支: %2$s\n⚠️ CI 调试构建旨在快速验证与修复问题，旧版本不提供支持，请更新后继续使用。</string>
+</resources>

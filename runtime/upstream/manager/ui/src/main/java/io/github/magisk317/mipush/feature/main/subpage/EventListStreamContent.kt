@@ -1,0 +1,477 @@
+package io.github.magisk317.mipush.feature.main.subpage
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import io.github.magisk317.uikit.surface.AppHorizontalDivider
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.MaterialTheme
+import io.github.magisk317.uikit.common.AppSnackbar
+import io.github.magisk317.uikit.common.AppSnackbarData
+import io.github.magisk317.uikit.common.AppSnackbarDuration
+import io.github.magisk317.uikit.common.AppSnackbarHostState
+import io.github.magisk317.uikit.common.AppSnackbarResult
+import io.github.magisk317.uikit.surface.swipeRevealSurface
+import io.github.magisk317.uikit.surface.AppSwipeToDismissBox
+import io.github.magisk317.uikit.surface.AppSwipeToDismissValue
+import io.github.magisk317.uikit.surface.rememberAppSwipeToDismissState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import co.touchlab.kermit.Logger
+import io.github.magisk317.mipush.manager.R
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import io.github.magisk317.mipush.common.Constants
+import io.github.magisk317.mipush.manager.application.ManagerEventResult
+import io.github.magisk317.uikit.surface.AppIconImage
+import io.github.magisk317.mipush.feature.ui.component.RefreshableLazyColumn
+import io.github.magisk317.uikit.surface.InfoPill
+import io.github.magisk317.uikit.surface.WorkspaceListItem
+import io.github.magisk317.uikit.scroll.ScrollChromeState
+import io.github.magisk317.uikit.theme.spacing
+import java.time.Instant
+import java.time.ZoneId
+import io.github.magisk317.mipush.main.viewmodel.EventListViewModel
+import io.github.magisk317.mipush.manager.remote.RuntimeReadUnavailableException
+import io.github.magisk317.uikit.text.AppText
+import io.github.magisk317.uikit.text.AppTextRole
+import io.github.magisk317.uikit.theme.AppColorRole
+import io.github.magisk317.uikit.theme.appColor
+
+fun EventInfoForDisplay.composeKey(): String {
+    if (id > 0L) return "id:$id"
+    return "legacy:${packageName}:${receiveDate.time}:${title.hashCode()}:${content.hashCode()}"
+}
+
+private fun MutableList<EventInfoForDisplay>.appendDistinct(itemsToAppend: List<EventInfoForDisplay>) {
+    if (itemsToAppend.isEmpty()) return
+    val existing = asSequence().map { it.composeKey() }.toHashSet()
+    for (item in itemsToAppend) {
+        if (existing.add(item.composeKey())) {
+            add(item)
+        }
+    }
+}
+
+@Composable
+internal fun EventList(
+    onClick: (EventInfoForDisplay) -> Unit,
+    getEvents: suspend (isRefresh: Boolean) -> List<EventInfoForDisplay>,
+    query: String,
+    packageName: String,
+    refreshSignal: Int = 0,
+    isActive: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    selectedTypeFilters: Set<EventTypeFilter> = emptySet(),
+    selectedStatusFilters: Set<EventStatusFilter> = emptySet(),
+    snackbarHostState: AppSnackbarHostState,
+    viewModel: EventListViewModel,
+    scrollChromeState: ScrollChromeState? = null,
+    listState: androidx.compose.foundation.lazy.LazyListState? = null,
+) {
+    val isPreview = LocalInspectionMode.current
+    val context = LocalContext.current
+    val recentActivityDeletedMessage = stringResource(R.string.recent_activity_deleted)
+    val recentActivityDeleteFailedMessage = stringResource(R.string.recent_activity_delete_failed)
+    val recentActivityRestoreFailedMessage = stringResource(R.string.recent_activity_restore_failed)
+    val actionUndoLabel = stringResource(R.string.action_undo)
+    val items = remember {
+        val snap = viewModel.getEventListSnapshot(query, packageName, refreshSignal)
+        val initialList = snap?.events.orEmpty()
+        mutableStateListOf<EventInfoForDisplay>().apply {
+            addAll(initialList)
+        }
+    }
+
+    val refreshScope = rememberCoroutineScope()
+    val actionScope = rememberCoroutineScope()
+    var isLoading by remember { mutableStateOf(false) }
+    var hasMore by remember { mutableStateOf(false) }
+    var isNeedRefresh by remember { mutableStateOf(false) }
+    var initialLoadFailed by remember { mutableStateOf(false) }
+    fun persistSnapshot() {
+        viewModel.putEventListSnapshot(
+            query = query,
+            packageName = packageName,
+            refreshSignal = refreshSignal,
+            events = items.toList(),
+            lastId = items.lastOrNull()?.id,
+            hasMore = hasMore,
+        )
+    }
+
+    val doLoadMore: (onRefreshed: () -> Unit) -> Unit = doLoadMore@{ onRefreshed ->
+        if (isLoading || !hasMore) {
+            onRefreshed()
+            return@doLoadMore
+        }
+        isLoading = true
+        refreshScope.launch {
+            try {
+                val loaded = getEvents(false)
+                withContext(Dispatchers.Main) {
+                    items.appendDistinct(loaded)
+                    hasMore = loaded.size >= Constants.PAGE_SIZE
+                    persistSnapshot()
+                    isLoading = false
+                    onRefreshed()
+                }
+            } catch (error: RuntimeReadUnavailableException) {
+                Logger.withTag("ManagerRuntime").w { "EventList doLoadMore unavailable status=${error.status}" }
+                withContext(Dispatchers.Main) {
+                    isLoading = false
+                    onRefreshed()
+                }
+            }
+        }
+    }
+    val doRefresh: (onRefreshed: () -> Unit) -> Unit = doRefresh@{ onRefreshed ->
+        if (isLoading) {
+            onRefreshed()
+            return@doRefresh
+        }
+        isLoading = true
+        refreshScope.launch {
+            try {
+                val elements = getEvents(true)
+                withContext(Dispatchers.Main) {
+                    val mergedItems = EventListViewModel.mergeEventItems(items, elements)
+                    items.clear()
+                    items.addAll(mergedItems)
+                    hasMore = hasMore || elements.size >= Constants.PAGE_SIZE
+                    persistSnapshot()
+                    isLoading = false
+                    isNeedRefresh = false
+                    onRefreshed()
+                }
+            } catch (error: RuntimeReadUnavailableException) {
+                Logger.withTag("ManagerRuntime").w { "EventList doRefresh unavailable status=${error.status}" }
+                withContext(Dispatchers.Main) {
+                    if (items.isEmpty()) {
+                        viewModel.invalidateEventListSnapshot()
+                        initialLoadFailed = true
+                    }
+                    isLoading = false
+                    isNeedRefresh = false
+                    onRefreshed()
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(isActive, query, packageName, refreshSignal) {
+        val snap = viewModel.reloadFromCache(
+            query = query,
+            packageName = packageName,
+            refreshSignal = refreshSignal,
+        ) ?: viewModel.getEventListSnapshot(
+            query = query,
+            packageName = packageName,
+            refreshSignal = refreshSignal,
+        )
+        if (snap != null && snap.events.isNotEmpty()) {
+            items.clear()
+            items.addAll(snap.events)
+            hasMore = snap.hasMore
+            initialLoadFailed = false
+            isNeedRefresh = false
+        } else if (items.isEmpty() && (isActive || query.isNotBlank())) {
+            // A newly typed query must fetch immediately. Search input is only exposed by
+            // the active page, but page activation can briefly lag behind recomposition.
+            // Keep the isActive guard for the unfiltered cold start so adjacent pager pages
+            // do not start remote reads just because they were precomposed.
+            isNeedRefresh = true
+            doRefresh {}
+        }
+    }
+
+    LaunchedEffect(isActive, query, packageName, refreshSignal) {
+        if (!isActive) return@LaunchedEffect
+        viewModel.cacheUpdates.collect { key ->
+            if (key != viewModel.cacheKey(query, packageName, refreshSignal)) return@collect
+            val cached = viewModel.reloadFromCache(query, packageName, refreshSignal) ?: return@collect
+            items.clear()
+            items.appendDistinct(cached.events)
+            hasMore = cached.hasMore
+            initialLoadFailed = false
+            isNeedRefresh = false
+        }
+    }
+
+    val isNeedMore: (Int) -> Boolean = { hasMore && !isLoading && it >= items.size - 10 }
+    val filteredItems = items.filter { it.matchesFilters(selectedTypeFilters, selectedStatusFilters) }
+
+    fun deleteEventWithUndo(item: EventInfoForDisplay) {
+        val key = item.composeKey()
+        val insertAt = items.indexOfFirst { it.composeKey() == key }.coerceAtLeast(0)
+        items.removeAll { it.composeKey() == key }
+        persistSnapshot()
+
+        actionScope.launch {
+            if (!viewModel.deleteEvent(item)) {
+                val idx = insertAt.coerceIn(0, items.size)
+                items.add(idx, item)
+                persistSnapshot()
+                snackbarHostState.currentSnackbarData?.dismiss()
+                snackbarHostState.showSnackbar(recentActivityDeleteFailedMessage)
+                return@launch
+            }
+            snackbarHostState.currentSnackbarData?.dismiss()
+            val result = snackbarHostState.showSnackbar(
+                message = recentActivityDeletedMessage,
+                actionLabel = actionUndoLabel,
+                duration = AppSnackbarDuration.Indefinite,
+            )
+            if (result == AppSnackbarResult.ActionPerformed) {
+                val restored = viewModel.restoreEvent(item)
+                if (restored != null) {
+                    val idx = insertAt.coerceIn(0, items.size)
+                    items.add(idx, restored)
+                    persistSnapshot()
+                } else {
+                    snackbarHostState.showSnackbar(recentActivityRestoreFailedMessage)
+                }
+            }
+        }
+    }
+
+     val isMiuixRows = io.github.magisk317.uikit.theme.currentUiKitStyle() ==
+        io.github.magisk317.uikit.theme.UiKitStyle.Miuix
+   RefreshableLazyColumn(
+        doRefresh,
+        isNeedMore,
+        doLoadMore,
+        isNeedRefresh = isNeedRefresh,
+        scrollToTopSignal = refreshSignal,
+        scrollToTopAfterRefresh = true,
+        scrollChromeState = scrollChromeState,
+        contentPadding = contentPadding,
+        modifier = Modifier,
+        listState = listState,
+    ) {
+        if (filteredItems.isEmpty() && isLoading) {
+            item {
+                InitialEventLoadState(modifier = Modifier.fillMaxWidth())
+            }
+        } else if (filteredItems.isEmpty() && !isLoading) {
+            item {
+                if (initialLoadFailed) {
+                    EventLoadFailedState(modifier = Modifier.fillMaxWidth())
+                } else {
+                    EmptyEventState(modifier = Modifier.fillMaxWidth())
+                }
+            }
+        } else {
+            items(filteredItems, key = { it.composeKey() }) {
+                if (isMiuixRows) {
+                    // Match the application-list rhythm: gapped 16dp-radius cards instead of
+                    // full-bleed rows + dividers (the swipe backdrop inherits the same inset).
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 12.dp)
+                            .padding(bottom = 6.dp),
+                    ) {
+                        SwipeToDeleteEventItem(
+                            item = it,
+                            onDelete = ::deleteEventWithUndo,
+                            onClick = onClick,
+                        )
+                    }
+                } else {
+                    SwipeToDeleteEventItem(
+                        item = it,
+                        onDelete = ::deleteEventWithUndo,
+                        onClick = onClick,
+                    )
+                    AppHorizontalDivider(
+                        thickness = 0.5.dp,
+                        color = appColor(AppColorRole.OutlineVariant),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SwipeToDeleteEventItem(
+    item: EventInfoForDisplay,
+    onDelete: (EventInfoForDisplay) -> Unit,
+    onClick: (EventInfoForDisplay) -> Unit,
+) {
+    val dismissState = rememberAppSwipeToDismissState()
+    var observedInitialValue by remember { mutableStateOf(false) }
+    var deleteTriggered by remember { mutableStateOf(false) }
+
+    // A restored item can keep a non-settled dismiss state when LazyColumn
+    // reuses its keyed composition. Reset that initial state without treating
+    // it as a new user gesture.
+    LaunchedEffect(dismissState.currentValue) {
+        if (!observedInitialValue) {
+            observedInitialValue = true
+            if (dismissState.currentValue != AppSwipeToDismissValue.Settled) {
+                dismissState.snapTo(AppSwipeToDismissValue.Settled)
+            }
+            return@LaunchedEffect
+        }
+        if (!deleteTriggered && dismissState.currentValue != AppSwipeToDismissValue.Settled) {
+            deleteTriggered = true
+            onDelete(item)
+        }
+    }
+
+    AppSwipeToDismissBox(
+        state = dismissState,
+        enableDismissFromStartToEnd = true,
+        enableDismissFromEndToStart = true,
+        backgroundContent = { direction ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    // Shared style-aware reveal surface: full-row silhouette carrying the
+                    // row card's rounded shape (Miuix) or a plain rectangle (Expressive),
+                    // with the same hairline inset under the card's anti-aliased edge.
+                    .then(swipeRevealSurface(color = appColor(AppColorRole.ErrorContainer)))
+                    .padding(horizontal = 24.dp),
+                contentAlignment = if (direction == AppSwipeToDismissValue.EndToStart) {
+                    Alignment.CenterEnd
+                } else {
+                    Alignment.CenterStart
+                },
+            ) {
+                AppText(
+                    text = stringResource(R.string.action_delete),
+                    color = appColor(AppColorRole.OnErrorContainer),
+                    role = AppTextRole.Body,
+                )
+            }
+        },
+    ) {
+        EventItem(item, onClick)
+    }
+}
+
+@Composable
+private fun EventItem(
+    item: EventInfoForDisplay,
+    onClick: (EventInfoForDisplay) -> Unit,
+) {
+    val disabled = item.isDisabled()
+    val denied = item.event.result != ManagerEventResult.OK
+    val appName = item.appName?.takeIf { it.isNotBlank() } ?: item.packageName
+    val titleText = item.title
+    val metaLine = if (item.channel.isNotBlank()) {
+        "$appName · ${item.channel}"
+    } else {
+        appName
+    }
+    val containerColor = appColor(AppColorRole.SurfaceContainerLow)
+
+    WorkspaceListItem(
+        modifier = Modifier
+            .fillMaxWidth(),
+        containerColor = containerColor,
+        onClick = { onClick(item) },
+        leadingContent = {
+            AppIconImage(
+                packageName = item.packageName,
+                modifier = Modifier.size(40.dp),
+            )
+        },
+        trailingContent = null,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AppText(
+                text = titleText,
+                role = AppTextRole.Subtitle,
+                color = appColor(AppColorRole.Primary),
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(modifier = Modifier.size(MaterialTheme.spacing.small))
+            AppText(
+                text = Instant.ofEpochMilli(item.receiveDate.time).atZone(ZoneId.systemDefault()).format(receiveDateTimeFormatter),
+                role = AppTextRole.BodySmall,
+                color = appColor(AppColorRole.OnSurfaceVariant),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AppText(
+                text = metaLine,
+                role = AppTextRole.BodySmall,
+                color = appColor(AppColorRole.OnSurfaceVariant),
+                maxLines = 1,
+                modifier = Modifier.weight(1f),
+            )
+            if (disabled) {
+                InfoPill(
+                    text = stringResource(R.string.notification_channels_disabled_badge),
+                    containerColor = appColor(AppColorRole.ErrorContainer),
+                    contentColor = appColor(AppColorRole.OnErrorContainer),
+                )
+            } else if (denied) {
+                InfoPill(
+                    text = stringResource(R.string.recent_activity_filter_status_denied),
+                    containerColor = appColor(AppColorRole.TertiaryContainer),
+                    contentColor = appColor(AppColorRole.OnTertiaryContainer),
+                )
+            }
+        }
+        AppText(
+            text = item.content,
+            role = AppTextRole.Body,
+            color = appColor(AppColorRole.OnSurfaceVariant),
+            maxLines = 3,
+            modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
+@Composable
+internal fun DeleteCountdownSnackbar(data: AppSnackbarData) {
+    var secondsLeft by remember { mutableIntStateOf(5) }
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(data) {
+        repeat(5) {
+            delay(1_000L)
+            secondsLeft--
+        }
+        if (!settled) {
+            data.dismiss()
+        }
+    }
+    AppSnackbar(
+        data = data,
+        actionLabel = "${data.visuals.actionLabel} (${secondsLeft.coerceAtLeast(0)}s)",
+        onAction = { settled = true },
+    )
+}

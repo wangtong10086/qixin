@@ -1,0 +1,109 @@
+plugins {
+    id("magisk.android.library")
+    id("magisk.android.compose")
+    alias(libs.plugins.kotlin.serialization)
+}
+
+android {
+    namespace = "io.github.magisk317.mipush.manager"
+
+    defaultConfig {
+        missingDimensionStrategy("version", "normal")
+    }
+
+    flavorDimensions += "distribution"
+
+    productFlavors {
+        create("play") {
+            dimension = "distribution"
+            buildConfigField("boolean", "HAS_BILLING", "true")
+        }
+        create("github") {
+            dimension = "distribution"
+            buildConfigField("boolean", "HAS_BILLING", "false")
+        }
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+}
+
+// Keep the navigation-performance verification gate in an allowed Manager module so
+// device acceptance cannot be started without the affected-module checks. The kotest-property
+// properties run through the existing JUnit 5 debug unit-test tasks.
+val navigationPerformancePropertyTests = tasks.register("navigationPerformancePropertyTests") {
+    group = "verification"
+    description = "Runs Manager and manager:client unit/property tests for navigation performance."
+    dependsOn(
+        ":manager:ui:testPlayDebugUnitTest",
+        ":manager:ui:testGithubDebugUnitTest",
+        ":manager:client:testDebugUnitTest",
+    )
+}
+
+val navigationPerformanceVerification = tasks.register("verifyNavigationPerformance") {
+    group = "verification"
+    description = "Runs compile, unit/property, and Runtime_Boundary checks before device acceptance."
+    dependsOn(
+        ":magisk-ui-kit:compileAndroidMain",
+        navigationPerformancePropertyTests,
+        ":verifyModuleBoundaries",
+    )
+}
+
+tasks.register("deviceAcceptancePrerequisites") {
+    group = "verification"
+    description = "Prepares the device-acceptance phase by running navigation-performance verification first."
+    dependsOn(navigationPerformanceVerification)
+}
+
+// A future device-acceptance task registered by the benchmark tooling inherits the
+// same gate without adding any runtime, Binder, or device-install behavior here.
+tasks.configureEach {
+    if (name == "deviceAcceptance") {
+        dependsOn(navigationPerformanceVerification)
+    }
+}
+
+dependencies {
+    implementation(project(":common"))
+    implementation(project(":configuration"))
+    implementation(project(":manager:application"))
+    implementation(project(":manager:port"))
+    implementation(project(":manager:client"))
+    implementation(project(":manager:xmsfDelivery"))
+    implementation(project(":settings"))
+    api(project(":magisk-ui-kit"))
+    implementation(project(":magisk-ui-kit:update"))
+    implementation(project(":core"))
+
+    testImplementation(libs.junit.jupiter)
+    testImplementation(libs.kotest.property)
+    testImplementation(libs.kotlinx.coroutines.core)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.mockk)
+    testRuntimeOnly(libs.junit.platform.launcher)
+
+    implementation(libs.kermit)
+    implementation(libs.libsu.core)
+    implementation(project(":magisk-xposed-kit:logging"))
+    implementation(project(":magisk-xposed-kit:permission"))
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
+
+    implementation(libs.androidx.compose.foundation)
+    implementation(libs.androidx.compose.material.icons.core)
+    implementation(libs.androidx.compose.material.icons.extended)
+
+    implementation(libs.androidx.startup.runtime)
+
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.documentfile)
+
+    implementation(libs.koin.android)
+    implementation(libs.koin.androidx.compose)
+    implementation(libs.koin.compose.viewmodel)
+}

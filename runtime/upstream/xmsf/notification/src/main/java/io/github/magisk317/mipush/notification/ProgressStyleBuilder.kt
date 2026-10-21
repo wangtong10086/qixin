@@ -1,0 +1,267 @@
+package io.github.magisk317.mipush.notification
+
+import android.annotation.SuppressLint
+import android.app.Notification
+import android.content.Context
+import android.os.Build
+import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import androidx.annotation.RequiresApi
+import androidx.core.app.NotificationCompat
+import com.xiaomi.xmpush.thrift.PushMetaInfo
+import co.touchlab.kermit.Logger
+
+/**
+ * Builds progress-style notifications for Live Updates.
+ *
+ * On Android 16+ (API 36+): uses Notification.ProgressStyle with promoted ongoing.
+ * On older Android: falls back to simulated progress using standard progress bar or BigTextStyle.
+ *
+ * Framework-side implementation — apps do not need to adapt.
+ */
+object ProgressStyleBuilder {
+
+    private const val TAG = "ProgressStyleBuilder"
+
+    /**
+     * Enhance a notification builder with progress/Live Update styling.
+     *
+     * @param context Application context
+     * @param builder Base notification builder
+     * @param metaInfo Push message metadata
+     * @param detectionResult Result from LiveUpdateDetector
+     * @return The enhanced builder (may be replaced with a platform-specific builder on Android 16+)
+     */
+    @JvmStatic
+    fun applyProgressStyle(
+        context: Context,
+        builder: NotificationCompat.Builder,
+        metaInfo: PushMetaInfo,
+        detectionResult: LiveUpdateDetector.DetectionResult,
+        semanticStyle: FocusSemanticTranslator.SemanticStyle =
+            FocusSemanticTranslator.semanticStyleForCategory(detectionResult.category),
+    ): NotificationCompat.Builder {
+        if (!detectionResult.isProgress) {
+            return builder
+        }
+
+        markLiveUpdate(builder, detectionResult, semanticStyle)
+        return applyFallbackProgressStyle(builder, detectionResult)
+    }
+
+    @JvmStatic
+    fun buildNotification(context: Context, builder: NotificationCompat.Builder): Notification {
+        return applyNativeProgressStyleIfNeeded(context, builder.build())
+    }
+
+    @JvmStatic
+    fun isLiveUpdate(builder: NotificationCompat.Builder): Boolean {
+        return builder.extras.getBoolean(EXTRA_LIVE_UPDATE, false)
+    }
+
+    @JvmStatic
+    fun applyNativeProgressStyleIfNeeded(context: Context, notification: Notification): Notification {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.BAKLAVA) {
+            return notification
+        }
+        if (!notification.extras.getBoolean(EXTRA_LIVE_UPDATE, false)) {
+            return notification
+        }
+        if (notification.hasCustomRemoteViews()) {
+            Logger.withTag(TAG).d { "Skip native ProgressStyle because notification uses custom RemoteViews" }
+            return notification
+        }
+        return try {
+            applyNativeProgressStyle(context, notification)
+        } catch (e: Exception) {
+            Logger.withTag(TAG).e(e) { "Failed to apply native ProgressStyle, keeping fallback notification" }
+            notification
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun applyNativeProgressStyle(
+        context: Context,
+        notification: Notification
+    ): Notification {
+        val extras = notification.extras
+        val platformBuilder = Notification.Builder.recoverBuilder(context, notification)
+        platformBuilder.addExtras(liveUpdateExtras(extras))
+        val style = Notification.ProgressStyle().setStyledByProgress(true)
+        val progress = extras.getInt(EXTRA_LIVE_UPDATE_PROGRESS, NO_PROGRESS)
+        if (progress == NO_PROGRESS) {
+            style.setProgressIndeterminate(true)
+        } else {
+            val safeProgress = progress.coerceIn(0, 100)
+            style.setProgress(safeProgress)
+            val segment = Notification.ProgressStyle.Segment(100)
+            val point = Notification.ProgressStyle.Point(safeProgress)
+            if (Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1) {
+                val semanticStyle = extras.getString(EXTRA_LIVE_UPDATE_SEMANTIC_STYLE)
+                    ?.let { runCatching { FocusSemanticTranslator.SemanticStyle.valueOf(it) }.getOrNull() }
+                    ?: FocusSemanticTranslator.SemanticStyle.INFO
+                applySemanticStyle(segment, point, semanticStyle)
+                annotateContentText(platformBuilder, notification, semanticStyle)
+            }
+            style.addProgressSegment(segment)
+            style.addProgressPoint(point)
+        }
+        val shortText = extras.getString(EXTRA_LIVE_UPDATE_SHORT_TEXT)?.take(MAX_SHORT_CRITICAL_TEXT)
+        if (!shortText.isNullOrBlank()) {
+            platformBuilder.setShortCriticalText(shortText)
+        }
+        platformBuilder
+            .setStyle(style)
+            .setOngoing(true)
+            .setAutoCancel(false)
+        // Android 16 / HyperOS OS3.0.315 NotificationManagerService checks
+        // POST_PROMOTED_NOTIFICATIONS against the final delegated pkg + notificationUid. Request
+        // promotion here, but keep the same ProgressStyle notification as the standard ongoing
+        // fallback when the target app has not been granted that permission.
+        requestPromotedOngoingIfAvailable(platformBuilder)
+        return platformBuilder
+            .build()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.BAKLAVA)
+    private fun requestPromotedOngoingIfAvailable(builder: Notification.Builder) {
+        if (Build.VERSION.SDK_INT_FULL < Build.VERSION_CODES_FULL.BAKLAVA_1) {
+            return
+        }
+        try {
+            requestPromotedOngoing(builder)
+        } catch (e: LinkageError) {
+            Logger.withTag(TAG).d(e) { "Notification.Builder#setRequestPromotedOngoing unavailable on this runtime" }
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES_FULL.BAKLAVA_1)
+    private fun requestPromotedOngoing(builder: Notification.Builder) {
+        builder.setRequestPromotedOngoing(true)
+    }
+
+    @RequiresApi(Build.VERSION_CODES_FULL.BAKLAVA_1)
+    @SuppressLint("NewApi")
+    private fun applySemanticStyle(
+        segment: Notification.ProgressStyle.Segment,
+        point: Notification.ProgressStyle.Point,
+        semanticStyle: FocusSemanticTranslator.SemanticStyle,
+    ) {
+        val platformStyle = FocusSemanticTranslator.toPlatformSemanticStyle(semanticStyle)
+        segment.setSemanticStyle(platformStyle)
+        point.setSemanticStyle(platformStyle)
+    }
+
+    @RequiresApi(Build.VERSION_CODES_FULL.BAKLAVA_1)
+    @SuppressLint("NewApi")
+    private fun annotateContentText(
+        builder: Notification.Builder,
+        notification: Notification,
+        semanticStyle: FocusSemanticTranslator.SemanticStyle,
+    ) {
+        val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)
+            ?.takeIf { it.isNotBlank() }
+            ?: return
+        val annotated = SpannableString(text).apply {
+            setSpan(
+                Notification.createSemanticStyleAnnotation(
+                    FocusSemanticTranslator.toPlatformSemanticStyle(semanticStyle)
+                ),
+                0,
+                length,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+        builder.setContentText(annotated)
+    }
+
+    private fun applyFallbackProgressStyle(
+        builder: NotificationCompat.Builder,
+        result: LiveUpdateDetector.DetectionResult
+    ): NotificationCompat.Builder {
+        Logger.withTag(TAG).d { "Applying fallback progress style for Android ${Build.VERSION.SDK_INT}" }
+
+        // Android 16 / HyperOS OS3.0.315 promotes only eligible, authorized notifications. These
+        // compat fields intentionally remain useful on every ROM when promotion is unavailable.
+        builder.setOngoing(true)
+        builder.setAutoCancel(false)
+        builder.setRequestPromotedOngoing(true)
+
+        // Preserve a continuously updateable standard progress notification as the cross-ROM
+        // fallback selected for non-MIUI devices and denied promoted-notification permission.
+        result.progressPercent?.let { percent ->
+            builder.setProgress(100, percent, false)
+        } ?: run {
+            // Indeterminate progress if no percentage available
+            builder.setProgress(0, 0, true)
+        }
+
+        // Use BigTextStyle to show full progress description when expanded
+        val bigText = result.progressText
+        if (!bigText.isNullOrBlank()) {
+            val style = NotificationCompat.BigTextStyle()
+            style.bigText(bigText)
+            result.trackerLabel?.let { style.setSummaryText(it) }
+            builder.setStyle(style)
+        }
+
+        // High priority for visibility
+        builder.priority = NotificationCompat.PRIORITY_HIGH
+
+        return builder
+    }
+
+    private fun markLiveUpdate(
+        builder: NotificationCompat.Builder,
+        result: LiveUpdateDetector.DetectionResult,
+        semanticStyle: FocusSemanticTranslator.SemanticStyle,
+    ) {
+        val extras = builder.extras
+        extras.putBoolean(EXTRA_LIVE_UPDATE, true)
+        extras.putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+        extras.putString(EXTRA_LIVE_UPDATE_CATEGORY, result.category.label)
+        extras.putString(
+            EXTRA_LIVE_UPDATE_SHORT_TEXT,
+            result.trackerLabel ?: result.progressText?.take(MAX_SHORT_CRITICAL_TEXT)
+        )
+        extras.putInt(EXTRA_LIVE_UPDATE_PROGRESS, result.progressPercent ?: NO_PROGRESS)
+        extras.putString(EXTRA_LIVE_UPDATE_SEMANTIC_STYLE, semanticStyle.name)
+        builder.addExtras(extras)
+    }
+
+    private fun liveUpdateExtras(source: Bundle): Bundle {
+        return Bundle().apply {
+            putBoolean(EXTRA_LIVE_UPDATE, true)
+            putBoolean(EXTRA_REQUEST_PROMOTED_ONGOING, true)
+            source.getString(EXTRA_LIVE_UPDATE_CATEGORY)?.let {
+                putString(EXTRA_LIVE_UPDATE_CATEGORY, it)
+            }
+            source.getString(EXTRA_LIVE_UPDATE_SHORT_TEXT)?.let {
+                putString(EXTRA_LIVE_UPDATE_SHORT_TEXT, it)
+            }
+            if (source.containsKey(EXTRA_LIVE_UPDATE_PROGRESS)) {
+                putInt(EXTRA_LIVE_UPDATE_PROGRESS, source.getInt(EXTRA_LIVE_UPDATE_PROGRESS, NO_PROGRESS))
+            }
+            source.getString(EXTRA_LIVE_UPDATE_SEMANTIC_STYLE)?.let {
+                putString(EXTRA_LIVE_UPDATE_SEMANTIC_STYLE, it)
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun Notification.hasCustomRemoteViews(): Boolean {
+        return contentView != null || bigContentView != null || headsUpContentView != null
+    }
+
+    internal const val EXTRA_LIVE_UPDATE = "xmsf.live_update"
+    internal const val EXTRA_LIVE_UPDATE_CATEGORY = "xmsf.live_update.category"
+    internal const val EXTRA_LIVE_UPDATE_SHORT_TEXT = "xmsf.live_update.short_text"
+    internal const val EXTRA_LIVE_UPDATE_PROGRESS = "xmsf.live_update.progress"
+    internal const val EXTRA_LIVE_UPDATE_SEMANTIC_STYLE = "xmsf.live_update.semantic_style"
+    // Framework key introduced with Android 16. Keep the literal so minSdk builds do not inline
+    // a newer SDK field; the platform reads the same key on supported releases.
+    private const val EXTRA_REQUEST_PROMOTED_ONGOING = "android.requestPromotedOngoing"
+    private const val NO_PROGRESS = -1
+    private const val MAX_SHORT_CRITICAL_TEXT = 15
+}
