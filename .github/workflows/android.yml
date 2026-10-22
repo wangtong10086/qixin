@@ -23,4 +23,6 @@ jobs:
       - name: Build native service
         run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865" python3 tools/build_native.py
       - name: Test, build and lint
-        run: ./gradlew :core:test :app:assembleRelease :app:lintRelease --console=plain
+        run: |
+          python3 -m compileall -q tools
+          ./gradlew :core:test :app:assembleRelease :app:lintRelease :probe:assembleDebug --console=plain

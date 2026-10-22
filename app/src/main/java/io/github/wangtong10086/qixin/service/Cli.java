@@ -14,7 +14,7 @@ public final class Cli {
   switch(cmd){
    case "status","apps","refresh" -> request.put("command",cmd);
    case "events","registrations","diagnose" -> {request.put("command",cmd);if(args.size()>1)request.put("package",args.get(1));}
-   case "registration" -> {if(!args.get(1).equals("retry"))throw new IllegalArgumentException("Expected retry");request.put("command","registration.retry").put("package",args.get(2));}
+   case "registration" -> {String action=args.get(1);if(!Set.of("retry","batch","status","cancel").contains(action))throw new IllegalArgumentException("Expected retry/batch/status/cancel");request.put("command","registration."+action);if(args.size()>2)request.put("package",args.get(2));}
    case "connection" -> {String action=args.get(1);if(!Set.of("takeover","rollback").contains(action))throw new IllegalArgumentException("Expected takeover/rollback");request.put("command","connection."+action);}
    case "channel" -> {if(!args.get(1).equals("reconnect"))throw new IllegalArgumentException("Expected reconnect");request.put("command","channel.reconnect").put("channel",args.get(2));}
    case "config" -> {
@@ -29,7 +29,7 @@ public final class Cli {
    case "rpc" -> request=new JSONObject(args.get(1));
    default -> throw new IllegalArgumentException("Unknown command: "+cmd);
   }
-  request.put("dryRun",dry);
+  request.put("dryRun",dry||request.optBoolean("dryRun"));
   if(follow&&!cmd.equals("events"))throw new IllegalArgumentException("--follow is only supported for events");
   if(follow)request.put("ascending",true);
   long cursor=0;

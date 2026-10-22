@@ -539,7 +539,7 @@ object ManagerContractValidationCore {
     private val WRITE_STATUSES = setOf("success", "failed", "unsupported", "duplicate")
     private val GRANT_SILENT_PERMISSION_USER_IDS = setOf(0, 999, -1)
     private val OPERATIONS_REQUIRING_PACKAGE = setOf(
-        "update_application", "launch_target_force_register", "delete_event", "restore_event",
+        "update_application", "register_background", "launch_target_force_register", "delete_event", "restore_event",
         "mock_message", "query_usage_stats", "delete_notification_channel", "zygisk_force_stop",
         "get_event_content", "get_event_json",
     )

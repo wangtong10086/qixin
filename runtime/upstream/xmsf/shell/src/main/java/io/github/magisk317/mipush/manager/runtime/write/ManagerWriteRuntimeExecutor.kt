@@ -164,6 +164,9 @@ class ManagerWriteRuntimeExecutor(
 
     private suspend fun dispatch(request: ManagerWriteRequestDto): ManagerWriteResultDto =
         when (request.operation) {
+            ManagerProtocol.WRITE_OP_REGISTER_BACKGROUND -> success(request.requestId,
+                if (io.github.magisk317.mipush.utils.RegistrationHelper.registerBackground(context, request.packageName))
+                    "request_sent" else "manual_required")
             ManagerProtocol.WRITE_OP_UPDATE_APPLICATION -> updateApplication(request)
             ManagerProtocol.WRITE_OP_LAUNCH_TARGET_FORCE_REGISTER -> launchTargetAppAndForceRegister(request)
             ManagerProtocol.WRITE_OP_DELETE_EVENT -> deleteEvent(request)

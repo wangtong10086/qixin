@@ -299,6 +299,21 @@ class RegistrationHelper(
             )
         }
 
+        /** Only a declared SDK receiver is eligible: no UI, bridge, thaw or data deletion. */
+        @JvmStatic
+        fun registerBackground(context: Context, packageName: String): Boolean {
+            val app = context.packageManager.getApplicationInfo(packageName, 0)
+            if (!app.enabled || app.flags and android.content.pm.ApplicationInfo.FLAG_STOPPED != 0) return false
+            val intent = Intent(PushConstants.MIPUSH_ACTION_NEW_MESSAGE).setPackage(packageName)
+            val receivers = context.packageManager.queryBroadcastReceivers(intent, 0)
+                .mapNotNull { it.activityInfo }.filter { it.enabled && it.exported && it.packageName == packageName }
+            if (receivers.isEmpty()) return false
+            intent.putExtra(PushConstants.MIPUSH_EXTRA_PAYLOAD, XMPushUtils.packToBytes(createForceRegisterMessage(packageName)))
+            intent.putExtra(PushConstants.MESSAGE_RECEIVE_TIME, System.currentTimeMillis())
+            context.sendBroadcast(intent)
+            return true
+        }
+
         @JvmStatic
         fun createForceRegisterMessage(packageName: String): XmPushActionContainer {
             val id = "fake_expired_${packageName}_${System.currentTimeMillis()}"

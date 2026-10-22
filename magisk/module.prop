@@ -1,6 +1,6 @@
 id=qixin_controller
 name=栖信推送管理
-version=0.1.0-alpha1
-versionCode=1
+version=0.1.0-alpha5
+versionCode=5
 author=wangtong10086
 description=Local MiPush and FCM diagnostics controller. Defaults to observation; retains existing transports.

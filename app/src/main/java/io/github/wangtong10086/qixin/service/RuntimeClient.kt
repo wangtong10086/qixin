@@ -74,6 +74,8 @@ class RuntimeClient(private val context: Context) {
         return application(name)
     }
 
+    fun registerBackground(name: String): JSONObject = write(ManagerProtocol.WRITE_OP_REGISTER_BACKGROUND, name)
+
     fun reconnect(): JSONObject = write(ManagerProtocol.WRITE_OP_XMPP_RECONNECT)
 
     fun replay(name: String, eventId: Long): JSONObject {

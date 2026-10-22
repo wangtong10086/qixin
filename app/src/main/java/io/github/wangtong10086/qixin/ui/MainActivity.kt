@@ -16,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -34,10 +33,12 @@ import java.text.DateFormat
 import java.util.Date
 
 class MainActivity:ComponentActivity(){
- override fun onCreate(state:Bundle?){super.onCreate(state);androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).isAppearanceLightStatusBars=true
-  setContent{MaterialTheme(colorScheme=lightColorScheme(primary=Color(0xFF6750A4),onPrimary=Color.White,primaryContainer=Color(0xFFEADDFF),surface=Color(0xFFFFFBFE),surfaceVariant=Color(0xFFF3EDF7),outline=Color(0xFF79747E))){App(intent.getStringExtra("EXTRA_PACKAGE_NAME") ?: intent.dataString.orEmpty())}}
+ override fun onCreate(state:Bundle?){
+  super.onCreate(state)
+  setContent { QixinTheme(window) { App(intent.getStringExtra("EXTRA_PACKAGE_NAME") ?: intent.dataString.orEmpty()) } }
  }
 }
+
 private fun JSONArray.rows()=(0 until length()).map{getJSONObject(it)}
 private fun stamp(time:Long)=if(time==0L)"尚未记录" else DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.MEDIUM).format(Date(time))
 private fun state(value:String)=mapOf("connected" to "已连接", "connecting" to "连接中", "startup-notification-cleanup" to "启动通知清理", "preserved-background-notifications" to "已保留后台通知", "native-connection-recovery" to "原生连接恢复", "hook-ready" to "钩子状态", "service" to "后台服务", "task" to "持续任务", "message" to "消息", "legacy" to "旧版未分类", "notification-enqueue" to "通知发布失败", "click-request" to "系统通知点击", "system-ui-click" to "用户已点击通知", "click-route" to "点击转发", "click-marker-restored" to "已保留点击标记并临时放行", "dispatch-result" to "服务投递结果", "service-started" to "服务启动请求已接受", "no-component" to "服务未启动", "business-token-upload" to "业务服务器注册", "business-token-batch" to "批量注册上报", "server-accepted" to "服务器已接受", "no-server-ack-observed" to "未观察到服务器确认", "business-token-cache" to "业务注册缓存", "business-channel-support" to "服务端通道配置", "supported" to "允许此通道", "not-supported" to "未允许此通道", "present" to "存在缓存", "absent" to "无缓存", "native-method-returned" to "原生调用已返回，尚未确认上报", "registered" to "已有小米注册记录","not-registered" to "尚未注册","unregistered" to "已注销","imported-send-message" to "小米消息记录","imported-registration" to "小米注册请求","imported-registration-result" to "小米注册结果","imported-ack" to "小米回执记录","imported-notification" to "小米通知记录","ok" to "成功","denied-disabled" to "服务禁用拦截","denied-user" to "用户策略拦截","authenticated" to "已连接并认证","disconnected" to "已断开","no-network" to "无可用网络","unknown" to "尚未确认","cached-registration" to "发现注册缓存","imported-record" to "已导入注册记录","dispatch" to "请求投递","notification" to "通知发布","click" to "通知点击","registration-callback" to "注册回调","recovery" to "连接恢复","accepted" to "系统已接受","rejected" to "系统拒绝","requested" to "已请求","observe" to "仅观察","manage" to "正在管理")[value]?:value
@@ -56,6 +57,7 @@ private fun state(value:String)=mapOf("connected" to "已连接", "connecting" t
  var status by remember{mutableStateOf(JSONObject())};var apps by remember{mutableStateOf(emptyList<JSONObject>())};var registrations by remember{mutableStateOf(emptyList<JSONObject>())};var events by remember{mutableStateOf(emptyList<JSONObject>())}
  var config by remember{mutableStateOf(JSONObject())};var draft by rememberSaveable{mutableStateOf("")};var original by rememberSaveable{mutableStateOf("")};var revision by rememberSaveable{mutableStateOf(0L)}
  var historyKind by rememberSaveable{mutableStateOf("message")};var states by remember{mutableStateOf(emptyList<JSONObject>())}
+ var showExcluded by rememberSaveable{mutableStateOf(false)}
  var query by rememberSaveable{mutableStateOf("")};var channel by rememberSaveable{mutableStateOf("")};var error by remember{mutableStateOf("")};var message by remember{mutableStateOf("")};var busy by remember{mutableStateOf(false)};var confirm by remember{mutableStateOf("")}
  val context=LocalContext.current
  val coroutine=rememberCoroutineScope();val lifecycle=LocalLifecycleOwner.current.lifecycle
@@ -94,11 +96,13 @@ private fun state(value:String)=mapOf("connected" to "已连接", "connecting" t
     items(found){r->Entry(if(r.getString("channel")=="fcm")"FCM" else "小米推送",state(r.getString("state"))+" · "+stamp(r.optLong("observedAt")));if(r.has("tokenFingerprint"))Text("注册指纹 ${r.getString("tokenFingerprint").take(16)}",style=MaterialTheme.typography.bodySmall);Text("业务服务器通道选择：尚未确认",style=MaterialTheme.typography.bodySmall)}
     if(draft.isNotEmpty()&&config.has("apps"))item{
      HorizontalDivider();Text("应用配置",style=MaterialTheme.typography.titleLarge)
-     listOf("island" to "在通知岛显示", "recordBody" to "记录此应用的标题和正文","deliveryLease" to "投递期间临时放行").forEach{(key,text)->Row(Modifier.fillMaxWidth()){Text(text,Modifier.weight(1f));Switch(JSONObject(draft).optBoolean(key),{draft=JSONObject(draft).put(key,it).toString()},enabled=key=="recordBody"||key=="deliveryLease"||key=="island")}}
+     listOf("pushExcluded" to "从推送应用列表和批量注册中排除","recordBody" to "记录此应用的标题和正文","deliveryLease" to "投递期间临时放行").forEach{(key,text)->Row(Modifier.fillMaxWidth()){Text(text,Modifier.weight(1f));Switch(JSONObject(draft).optBoolean(key),{draft=JSONObject(draft).put(key,it).toString()})}}
      Text("投递豁免需在设置中启用，并使用支持此功能的栖序。声音和振动由系统通知渠道管理。",style=MaterialTheme.typography.bodySmall)
+     OutlinedButton(onClick={context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,pkg))}){Text("系统通知设置")}
      Button(onClick={save()},enabled=!busy&&draft!=original){Text("保存更改")}
     }
-    item{RuntimeApplicationPanel(pkg)}
+    item{OpenRegistrationButton(pkg);Text("打开后由应用自身完成注册，返回栖信可刷新记录。",style=MaterialTheme.typography.bodySmall)}
+    if(apps.firstOrNull{it.getString("package")==pkg}?.getJSONObject("pushEvidence")?.has("mipush")==true)item{RuntimeApplicationPanel(pkg)}
     if(pkg=="com.ss.android.lark")item{OutlinedButton(onClick={execute(JSONObject().put("command","registration.retry").put("package",pkg)){message="请求已排队，请打开飞书并等待约 40 秒"}}){Text("重新请求小米注册")};Text("调用飞书自身 SDK 注册和上报；不会发送聊天消息。",style=MaterialTheme.typography.bodySmall)}
     if(pkg=="com.ss.android.lark")item{
      val keep=status.optJSONObject("keepalive")?:JSONObject()
@@ -123,8 +127,10 @@ private fun state(value:String)=mapOf("connected" to "已连接", "connecting" t
      for(key in listOf("maintenanceError","importError"))if(status.optString(key).isNotEmpty())item{Text(status.getString(key),color=MaterialTheme.colorScheme.error)}
     }
     "应用"->{
+     item{RegistrationPanel(active);HorizontalDivider();Row{Text("显示已排除的应用",Modifier.weight(1f));Switch(showExcluded,{showExcluded=it})}}
+     item{TextButton(onClick={execute(JSONObject().put("command","refresh")){execute(JSONObject().put("command","apps")){index->apps=index.getJSONArray("apps").rows();registrations=index.getJSONArray("registrations").rows();message="已刷新推送支持和注册记录"}}}){Text("刷新应用与注册记录")}}
      item{OutlinedTextField(query,{query=it},label={Text("搜索应用名称或包名")},singleLine=true,modifier=Modifier.fillMaxWidth());Row{listOf("" to "全部","fcm" to "FCM","mipush" to "小米推送").forEach{(key,title)->FilterChip(channel==key,{channel=key},label={Text(title)})}}}
-     items(apps.filter{(it.getString("label").contains(query,true)||it.getString("package").contains(query,true))&&(channel.isEmpty()||registrations.any{r->r.getString("package")==it.getString("package")&&r.getString("channel")==channel})},key={it.getString("package")}){a->val name=a.getString("package");val registered=registrations.filter{it.getString("package")==name}.map{if(it.getString("channel")=="fcm")"FCM" else "小米"}.distinct();Entry(a.getString("label"),if(registered.isEmpty())"尚无注册记录" else registered.joinToString(" / "),{pkg=name},name)}
+     items(apps.filter{(showExcluded||!Policy.app(config,it.getString("package")).optBoolean("pushExcluded"))&&(it.getString("label").contains(query,true)||it.getString("package").contains(query,true))&&(channel.isEmpty()||it.getJSONObject("pushEvidence").has(channel))},key={it.getString("package")}){a->val name=a.getString("package");val registered=registrations.filter{it.getString("package")==name}.map{if(it.getString("channel")=="fcm")"FCM" else "小米"}.distinct();Entry(a.getString("label"),(if(Policy.app(config,name).optBoolean("pushExcluded"))"已排除 · " else "")+(if(registered.isEmpty())"已识别推送 SDK · 尚无注册记录" else registered.joinToString(" / ")),{pkg=name},name)}
     }
     "历史"->{
      item{Row(Modifier.horizontalScroll(rememberScrollState())){listOf("message" to "消息","states" to "运行状态","diagnostic" to "诊断","legacy" to "旧版未分类").forEach{(key,title)->FilterChip(historyKind==key,{historyKind=key},label={Text(title)})}}}
@@ -135,13 +141,10 @@ private fun state(value:String)=mapOf("connected" to "已连接", "connecting" t
     }
     "设置"->{if(config.has("mode")&&draft.isNotEmpty()){
      item{
-      Text("通知岛",style=MaterialTheme.typography.titleLarge)
-      Text("持续任务常驻，普通消息短显；VPN 等后台服务状态不上岛。锁屏时使用系统原通知。",style=MaterialTheme.typography.bodySmall)
-      Row(Modifier.fillMaxWidth()){Text("启用通知岛",Modifier.weight(1f));Switch(Policy.island(JSONObject(draft)).getBoolean("enabled"),{val next=JSONObject(draft);next.put("island",Policy.island(next).put("enabled",it));draft=next.toString()})}
-      Text("消息显示 ${Policy.island(JSONObject(draft)).getInt("timeoutSeconds")} 秒")
-      Slider(value=Policy.island(JSONObject(draft)).getInt("timeoutSeconds").toFloat(),onValueChange={val next=JSONObject(draft);next.put("island",Policy.island(next).put("timeoutSeconds",it.toInt()));draft=next.toString()},valueRange=1f..30f,steps=28)
+      Text("通知展示",style=MaterialTheme.typography.titleLarge)
+      Text("使用 Android 原生通知；横幅、声音与振动由各应用的通知渠道和勿扰模式控制。",style=MaterialTheme.typography.bodySmall)
+      OutlinedButton(onClick={context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ALL_APPS_NOTIFICATION_SETTINGS))}){Text("系统通知设置")}
       OutlinedButton(onClick={context.startActivity(android.content.Intent(android.provider.Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))}){Text("通知读取权限")}
-      OutlinedButton(onClick={context.startActivity(android.content.Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,android.net.Uri.parse("package:"+context.packageName)))}){Text("悬浮显示权限")}
       HorizontalDivider()
      }
      item{Text("运行策略",style=MaterialTheme.typography.titleLarge);Row{listOf("observe" to "仅观察","manage" to "管理").forEach{(key,title)->FilterChip(JSONObject(draft).optString("mode")==key,{draft=JSONObject(draft).put("mode",key).toString()},label={Text(title)})}}}

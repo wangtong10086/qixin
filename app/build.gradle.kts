@@ -10,8 +10,8 @@ android {
         applicationId = "io.github.wangtong10086.qixin"
         minSdk = 36
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0-alpha1"
+        versionCode = 5
+        versionName = "0.1.0-alpha5"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }

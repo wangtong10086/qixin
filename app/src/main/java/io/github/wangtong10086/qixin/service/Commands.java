@@ -3,13 +3,14 @@ import org.json.*;
 import java.util.concurrent.ConcurrentHashMap;
 import io.github.wangtong10086.qixin.core.*;
 public final class Commands {
+ final RegistrationBatch registrationBatch;
  final ConnectionMigration migration;
  final KeepAlive keepAlive;
  final Store store;final History history;final Inventory inventory;final Health health;
  final ConcurrentHashMap<String,JSONObject> registrationsPending=new ConcurrentHashMap<>();
  final ConcurrentHashMap<String,JSONObject> hooks=new ConcurrentHashMap<>();
  volatile String inventoryError="",healthError="";
- public Commands(Store s,History h,Inventory i,Health health)throws Exception{store=s;history=h;inventory=i;this.health=health;this.migration=new ConnectionMigration(s);this.keepAlive=new KeepAlive(s,i,h);}
+ public Commands(Store s,History h,Inventory i,Health health)throws Exception{store=s;history=h;inventory=i;this.health=health;this.migration=new ConnectionMigration(s);this.keepAlive=new KeepAlive(s,i,h);this.registrationBatch=new RegistrationBatch(i,h,s);}
  public JSONObject execute(JSONObject request,String role)throws Exception{
   String cmd=request.getString("command");
   boolean admin=role.equals("root")||role.equals("manager");
@@ -26,6 +27,9 @@ public final class Commands {
    case "runtime.logs" -> inventory.runtime.exportLogs();
    case "keepalive.get" -> keepAlive.status();
    case "keepalive.set" -> keepAlive.set(request.getBoolean("enabled"),request.getLong("expectedRevision"));
+   case "registration.batch" -> registrationBatch.start(request);
+   case "registration.status" -> registrationBatch.status();
+   case "registration.cancel" -> registrationBatch.cancel();
    case "registration.retry" -> {
     String name=request.getString("package");if(!name.equals("com.ss.android.lark"))throw new IllegalArgumentException("此应用尚无注册适配器");
     JSONObject config=store.get();if(!config.getString("mode").equals("manage")||!config.getJSONObject("takeover").optBoolean("registration"))throw new IllegalStateException("请先启用飞书注册兼容");
@@ -53,7 +57,7 @@ public final class Commands {
     yield value;
    }
    case "config.replace" -> store.replace(request.getJSONObject("config"),request.getLong("expectedRevision"),request.optBoolean("dryRun"));
-   case "apps" -> new JSONObject().put("apps",inventory.apps()).put("registrations",history.registrations(""));
+   case "apps" -> new JSONObject().put("apps",inventory.pushApps(history,store)).put("registrations",history.registrations(""));
    case "registrations" -> new JSONObject().put("registrations",history.registrations(request.optString("package")));
    case "events" -> history.events(request);
    case "notifications.observed" -> {

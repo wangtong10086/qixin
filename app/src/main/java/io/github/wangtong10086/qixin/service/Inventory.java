@@ -22,7 +22,8 @@ public final class Inventory {
   JSONArray result=new JSONArray();java.util.List<String> failures=new java.util.ArrayList<>();long now=System.currentTimeMillis();
   for(ApplicationInfo app:pm.getInstalledApplications(0)){
    if(app.uid<10000)continue;
-   result.put(new JSONObject().put("package",app.packageName).put("label",pm.getApplicationLabel(app).toString()).put("uid",app.uid).put("enabled",app.enabled).put("stopped",(app.flags&ApplicationInfo.FLAG_STOPPED)!=0));
+   JSONObject evidence=discover(app.packageName);
+   result.put(new JSONObject().put("pushEvidence",evidence).put("package",app.packageName).put("label",pm.getApplicationLabel(app).toString()).put("uid",app.uid).put("enabled",app.enabled).put("stopped",(app.flags&ApplicationInfo.FLAG_STOPPED)!=0));
    Path path=Path.of("/data/user/0",app.packageName,"shared_prefs/com.google.android.gms.appid.xml");
    if(!Files.isRegularFile(path))continue;
    try(var input=Files.newInputStream(path)){
@@ -33,6 +34,7 @@ public final class Inventory {
      String token=value;long timestamp=0;
      if(value.startsWith("{")){JSONObject cached=new JSONObject(value);token=cached.optString("token");timestamp=cached.optLong("timestamp");}
      if(token.isEmpty())continue;
+     evidence.put("fcm","SDK 注册缓存");
      history.registration(new JSONObject().put("package",app.packageName).put("channel","fcm").put("state","cached-registration").put("source","sdk-cache").put("senderFingerprint",Events.digest(key)).put("tokenFingerprint",Events.digest(token)).put("observedAt",now).put("cacheTime",timestamp).put("businessUpload","unknown"));
     }
    }catch(org.xmlpull.v1.XmlPullParserException|JSONException invalid){failures.add(app.packageName+": invalid registration cache ("+invalid.getClass().getSimpleName()+")");}catch(java.nio.file.NoSuchFileException removed){/* App data was removed during discovery. */}
@@ -52,6 +54,35 @@ public final class Inventory {
 
   }catch(android.database.sqlite.SQLiteException incompatible){failures.add("XMSF import: "+incompatible.getMessage());}
   importError=String.join("; ",failures);
+ }
+ public JSONArray pushApps(History history,Store store)throws Exception{
+  JSONArray rows=apps(),registrations=history.registrations("");JSONObject config=store.get();JSONArray result=new JSONArray();
+  for(int i=0;i<rows.length();i++){
+   JSONObject row=rows.getJSONObject(i);String name=row.getString("package");
+   if(Set.of(MANAGER,GMS,XMSF).contains(name))continue;
+   JSONObject evidence=row.getJSONObject("pushEvidence");
+   for(int j=0;j<registrations.length();j++){
+    JSONObject reg=registrations.getJSONObject(j);
+    if(name.equals(reg.getString("package"))&&Set.of("registered","cached-registration").contains(reg.optString("state")))evidence.put(reg.getString("channel"),"已有注册记录");
+   }
+   if(evidence.length()==0)continue;
+   row.put("pushExcluded",io.github.wangtong10086.qixin.core.Policy.app(config,name).getBoolean("pushExcluded"));result.put(row);
+  }
+  return result;
+ }
+ private JSONObject discover(String name)throws Exception{
+  JSONObject evidence=new JSONObject();
+  PackageInfo info;
+  try{info=pm.getPackageInfo(name,PackageManager.GET_SERVICES|PackageManager.GET_RECEIVERS);}
+  catch(PackageManager.NameNotFoundException removed){return evidence;}
+  if(info.services!=null)for(ServiceInfo component:info.services){
+   if(Set.of("com.xiaomi.mipush.sdk.PushMessageHandler","com.xiaomi.mipush.sdk.MessageHandleService").contains(component.name))evidence.put("mipush","小米 SDK 服务");
+   if(component.name.equals("com.google.firebase.messaging.FirebaseMessagingService"))evidence.put("fcm","FCM SDK 服务");
+  }
+  if(!pm.queryIntentServices(new android.content.Intent("com.google.firebase.MESSAGING_EVENT").setPackage(name),PackageManager.MATCH_DISABLED_COMPONENTS).isEmpty())evidence.put("fcm","FCM 消息服务");
+  if(!pm.queryBroadcastReceivers(new android.content.Intent("com.xiaomi.mipush.RECEIVE_MESSAGE").setPackage(name),PackageManager.MATCH_DISABLED_COMPONENTS).isEmpty())evidence.put("mipush","小米消息接收器");
+  if(info.receivers!=null)for(ActivityInfo component:info.receivers)if(component.name.equals("com.google.firebase.iid.FirebaseInstanceIdReceiver"))evidence.put("fcm","FCM SDK 接收器");
+  return evidence;
  }
  public boolean manager(int uid,String signer)throws Exception{
   if(uid!=uid(MANAGER))return false;

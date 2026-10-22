@@ -4,15 +4,20 @@ import org.json.*;
 import java.util.Set;
 
 public final class Policy {
+    /** Startup housekeeping must not erase messages delivered during a background wake. */
+    public static boolean preserveStartupNotifications(JSONObject policy,boolean startupCleanup,boolean visible){
+        return startupCleanup&&!visible&&policy.optString("mode").equals("manage");
+    }
     public static JSONObject initial(){return new JSONObject().put("schema",1).put("revision",0).put("mode","observe")
         .put("recovery","soft").put("historyDays",7).put("apps",new JSONObject()).put("takeover",new JSONObject());}
     public static void oneOf(String value,String... allowed){for(String s:allowed)if(s.equals(value))return;throw new IllegalArgumentException("Unsupported value: "+value);}
     public static void packageName(String name){if(!name.equals("android")&&!name.matches("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+"))throw new IllegalArgumentException("Invalid package name");}
     public static JSONObject app(JSONObject policy,String name){
-        JSONObject result=new JSONObject().put("recordBody",false).put("deliveryLease",true).put("proxy",false).put("sound",false).put("vibrate",false).put("island",true);
+        JSONObject result=new JSONObject().put("pushExcluded",false).put("recordBody",false).put("deliveryLease",true).put("proxy",false).put("sound",false).put("vibrate",false).put("island",true);
         JSONObject specific=policy.getJSONObject("apps").optJSONObject(name);
         if(specific!=null)for(String key:Json.keys(specific))result.put(key,specific.get(key));return result;
     }
+    // Legacy fields remain importable; native notification display no longer reads these options.
     public static JSONObject island(JSONObject policy){return policy.optJSONObject("island")!=null?policy.getJSONObject("island"):new JSONObject().put("enabled",false).put("timeoutSeconds",5);}
     public static void validate(JSONObject policy){
         if(policy.getInt("schema")!=1)throw new IllegalArgumentException("Unsupported schema");
@@ -21,7 +26,7 @@ public final class Policy {
         for(String name:Json.keys(policy.getJSONObject("apps"))){
             packageName(name);JSONObject app=policy.getJSONObject("apps").getJSONObject(name);
             for(String field:Json.keys(app)){
-                if(!Set.of("recordBody","deliveryLease","proxy","sound","vibrate","island").contains(field))throw new IllegalArgumentException("Unknown app setting: "+field);
+                if(!Set.of("pushExcluded","recordBody","deliveryLease","proxy","sound","vibrate","island").contains(field))throw new IllegalArgumentException("Unknown app setting: "+field);
                 if(!(app.get(field) instanceof Boolean))throw new IllegalArgumentException("Expected boolean: "+field);
             }
         }

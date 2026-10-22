@@ -101,6 +101,7 @@ object ManagerProtocol {
     const val WRITE_DETAIL_DUAL_APP_INSTALLED = "dual_app_installed"
     const val WRITE_DETAIL_DUAL_APP_NOT_INSTALLED = "dual_app_not_installed"
     const val WRITE_OP_UPDATE_APPLICATION = "update_application"
+    const val WRITE_OP_REGISTER_BACKGROUND = "register_background"
     const val WRITE_OP_LAUNCH_TARGET_FORCE_REGISTER = "launch_target_force_register"
     const val WRITE_OP_DELETE_EVENT = "delete_event"
     const val WRITE_OP_RESTORE_EVENT = "restore_event"

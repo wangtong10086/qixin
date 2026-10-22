@@ -4,7 +4,7 @@
 
 - `xmsf` 移除 `manager:ui` 依赖，宿主不再启动旧管理界面依赖。保留协议、数据库、通知及管理接口。
 - `ManagerUiEntryPoints` 的入口统一转向栖信，保留应用包名参数。
-- `MiPushFrameworkApp` 在所有进程关闭遥测和启动时远程开关请求；关闭旧通知岛/浮窗/焦点通知，由栖信通知监听器展示通知岛。
+- `MiPushFrameworkApp` 在所有进程关闭遥测和启动时远程开关请求；关闭旧通知岛/浮窗/焦点通知。alpha3 起栖信也移除自绘通知岛，统一由 Android 展示原始通知；监听器只同步历史与常驻状态。
 - `xmsf` 集成 `xposed` 库，以同一个 APK 提供现有系统兼容钩子；模块 API 102 和原作用域保持一致。钩子进程遥测同样关闭。宿主显式声明 libxposed compileOnly 依赖，并保留 XposedRuntime 回调，防止发布混淆产生 AbstractMethodError。
 - `ManagerRuntimeService` 分离可复用的 `ManagerRuntimeEndpoint`。新增 root 专用 `QixinRuntimeProvider`，解决 root app_process 没有 AMS 应用记录、无法普通 bindService 的问题。保留 AIDL 协议及签名权限；Provider 只允许 UID 0，endpoint 保留调用者检查。
 - `ManagerRuntimeCallerPolicy` 支持 root 和同签名栖信，错误签名不能因包名相同而放行。
@@ -12,3 +12,7 @@
 - 增加实际旧数据库迁移测试，核对应用配置、注册材料和事件负载的指纹。测试输入来自本机私有备份，不提交到仓库。
 
 没有改变第三方业务服务器选择推送通道的逻辑；模块连接正常不能保证某个应用会采用小米推送。
+
+## 后台注册接口
+
+新增 `register_background` 管理写操作，要求合法包名。仅向已启用且未强行停止应用的导出小米 SDK 接收器发送 RegIdExpired 请求；没有接收器则返回 `manual_required`。不调用三通道回退、启动 Activity、解冻、清除注册数据或伪造注册成功。栖信批量执行前检查应用注册允许策略；接口成功只代表请求已交给系统。

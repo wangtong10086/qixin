@@ -26,7 +26,7 @@ public final class ModuleEntry extends XposedModule {
  private final ThreadLocal<Boolean> batchUpload=new ThreadLocal<>();
  private final ThreadLocal<Integer> manualUpload=new ThreadLocal<>();
  private volatile boolean networkObserved;
- private final ThreadLocal<Boolean> startupNotificationCleanup=new ThreadLocal<>();
+ private final ThreadLocal<String> startupNotificationCleanup=new ThreadLocal<>();
  private Context systemContext; private int systemUiUid=-1,qixinUid=-1;
  private Object activityManagerInternal; private Method tempAllowlist;
  private record ClickLease(long deadline,int senderPid,int senderUid) {}
@@ -38,7 +38,7 @@ public final class ModuleEntry extends XposedModule {
  private void start(String name){
   scope=name;
   Thread worker=new Thread(()->{
-   long refresh=0;
+   long refresh=-30000;
    while(true)try{
     long now=SystemClock.elapsedRealtime();
     if(now-refresh>=30000){if(scope.equals("system_server")&&systemContext==null)initializeSystem();if(scope.equals("system_server"))installed.put("delivery-lease","1".equals(System.getProperty("qixu.push.lease.api"))?1:0);config=Wire.call(new JSONObject().put("command","hook.config"));refresh=now;
@@ -262,27 +262,36 @@ public final class ModuleEntry extends XposedModule {
   });
   networkObserved=true;
  }
- private void lark(ClassLoader loader){
-  larkLoader=loader;
-  install(loader,"lark-startup-cleanup","com.ss.android.lark.framework.assembly.offlinepush.UpdateOfflinePushConfigTask$a","run",m->m.getParameterCount()==0,c->{
+ private void larkCleanupTask(ClassLoader loader,String label,String task){
+  install(loader,label,task,"run",m->m.getParameterCount()==0,c->{
    if(!installed.containsKey("lark-preserve-background-notifications")){
     Object api=Class.forName("com.ss.android.lark.utils.ApiUtils",false,loader).getMethod("getApi",Class.class).invoke(null,Class.forName("rk6.a",false,loader));
     Method clear=api.getClass().getMethod("clearNotification");
     hook(clear).setPriority(10000).setId("qixin.lark-preserve-background-notifications").intercept(call->{
-     if(Boolean.TRUE.equals(startupNotificationCleanup.get())&&config.optBoolean("nativeKeepalive")&&config.optString("mode").equals("manage")){
+     String source=startupNotificationCleanup.get();
+     if(source!=null){
       ActivityManager.RunningAppProcessInfo process=new ActivityManager.RunningAppProcessInfo();ActivityManager.getMyMemoryState(process);
-      if(process.importance>ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND){
-       observeSafely(()->emit(event("system","startup-notification-cleanup","com.ss.android.lark").put("result","preserved-background-notifications")));
-       return null;
-      }
+      JSONObject policy=config;
+      boolean preserve=Policy.preserveStartupNotifications(policy,true,process.importance<=ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE);
+      observeSafely(()->emit(event("system","startup-notification-cleanup","com.ss.android.lark")
+       .put("result",preserve?"preserved-background-notifications":"allowed-notification-cleanup")
+       .put("component",source+".run -> clearNotification")
+       .put("reason","mode="+policy.optString("mode","not-ready")+",importance="+process.importance)));
+      // clearNotification enqueues asynchronous work; intercept here while the task marker is still present.
+      if(preserve)return null;
      }
      return call.proceed();
     });
     installed.put("lark-preserve-background-notifications",1);
    }
-   startupNotificationCleanup.set(true);
+   startupNotificationCleanup.set(task);
    try{return c.proceed();}finally{startupNotificationCleanup.remove();}
   });
+ }
+ private void lark(ClassLoader loader){
+  larkLoader=loader;
+  larkCleanupTask(loader,"lark-startup-cleanup","com.ss.android.lark.framework.assembly.offlinepush.UpdateOfflinePushConfigTask$a");
+  larkCleanupTask(loader,"lark-feed-startup-cleanup","com.ss.android.lark.feed.app.refactor.controller.StatusMachineController$d");
   install(loader,"lark-push-start","com.bytedance.push.j","onPushStart",m->m.getParameterCount()==1,c->{
    Object result=c.proceed();larkPushStarted=true;
    new Handler(Looper.getMainLooper()).post(()->{if(pendingRegistrationUntil>System.currentTimeMillis()){pendingRegistrationUntil=0;observeSafely(this::retryLark);}});
